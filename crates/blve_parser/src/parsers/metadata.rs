@@ -1,51 +1,74 @@
 use crate::parsers::utils::{empty_lines, parse_content, parse_language_name};
 use crate::structs::blocks::{MetaData, ParsedItem};
+use nom::branch::permutation;
+use nom::character::complete::{alphanumeric1, space0};
+use nom::combinator::opt;
+use nom::multi::separated_list0;
+use nom::{bytes::complete::tag, IResult};
 use nom::{
-    branch::alt,
-    bytes::complete::tag,
-    character::complete::multispace0,
-    combinator::map,
-    sequence::{delimited, pair, preceded, separated_pair},
-    IResult,
+    error::{ErrorKind, ParseError},
+    AsChar, InputTakeAtPosition,
 };
 use std::collections::HashMap;
 
-pub fn parse_meta_data(input: &str) -> IResult<&str, ParsedItem> {
+pub fn parse_meta_data<'a>(input: &str) -> IResult<&str, ParsedItem> {
     let (input, _) = empty_lines(input)?;
 
     let (input, _) = tag("@")(input)?;
     let (input, kind) = parse_language_name(input)?;
-    let (input, (arguments, content)) = alt((
-        map(
-            pair(
-                delimited(
-                    tag("("),
-                    separated_pair(
-                        preceded(tag(""), parse_language_name),
-                        preceded(tag(":"), tag("")),
-                        parse_content,
-                    ),
-                    tag(")"),
-                ),
-                preceded(multispace0, parse_content),
-            ),
-            |((arg_name, arg_content), content)| {
-                let mut arguments = HashMap::new();
-                arguments.insert(arg_name, arg_content.to_string());
-                (arguments, content)
-            },
-        ),
-        map(pair(multispace0, parse_content), |(_, content)| {
-            (HashMap::new(), content)
-        }),
-    ))(input)?;
+    let mut params = HashMap::new();
+    let (input, tg) = opt(tag("("))(input)?;
+    let new_input: &str;
+    if tg != None {
+        let (input, result) = separated_list0(
+            tag(","),
+            permutation((
+                space0,
+                alphanumeric1,
+                space0,
+                tag(":"),
+                space0,
+                alphanumeric_or_quotes,
+                space0,
+            )),
+        )(input)?;
+
+        for (_, key, _, _, _, value, _) in result {
+            params.insert(key.to_string(), value.to_string());
+        }
+
+        let (input, _) = tag(")")(input)?;
+        new_input = input;
+    } else {
+        new_input = input;
+    }
+
+    let input = new_input;
+
+    let (input, _) = space0(input)?;
+    let (input, content) = parse_content(input)?;
 
     Ok((
         input,
         ParsedItem::MetaData(MetaData {
             kind,
-            arguments,
+            params,
             content,
         }),
     ))
+}
+
+fn alphanumeric_or_quotes<T, E: ParseError<T>>(input: T) -> IResult<T, T, E>
+where
+    T: InputTakeAtPosition,
+    T::Item: AsChar + Clone,
+    <T as InputTakeAtPosition>::Item: AsChar,
+{
+    input.split_at_position1_complete(
+        |item| {
+            let c = item.as_char();
+            !(c.is_alphanumeric() || c == '\'' || c == '\"')
+        },
+        ErrorKind::AlphaNumeric,
+    )
 }

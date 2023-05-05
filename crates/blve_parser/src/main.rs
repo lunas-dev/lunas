@@ -8,8 +8,11 @@ fn main() {
         r#"
 
 
-@input(arg1:hello) "hey"
-@input "hey"
+@state(key:"hey") myState:AppState
+@input message = "hey"
+@input optional:string?
+
+@input(param:hey) optional?
 html:
     <div>
 

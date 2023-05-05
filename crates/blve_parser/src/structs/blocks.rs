@@ -9,7 +9,7 @@ pub struct LanguageBlock {
 #[derive(Debug, PartialEq)]
 pub struct MetaData {
     pub kind: String,
-    pub arguments: HashMap<String, String>,
+    pub params: HashMap<String, String>,
     pub content: String,
 }
 
