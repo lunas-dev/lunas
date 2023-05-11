@@ -21,6 +21,8 @@ html:
     Hello World
     </h1>
     </div>
+script:
+    let hw = "hello world!"
 @input finalInput:String = "final input"
 
 

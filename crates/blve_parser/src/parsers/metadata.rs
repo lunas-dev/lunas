@@ -18,8 +18,7 @@ pub fn parse_meta_data<'a>(input: &str) -> IResult<&str, ParsedItem> {
     let (input, kind) = parse_language_name(input)?;
     let mut params = HashMap::new();
     let (input, tg) = opt(tag("("))(input)?;
-    let new_input: &str;
-    if tg != None {
+    let input = if tg != None {
         let (input, result) = separated_list0(
             tag(","),
             permutation((
@@ -38,12 +37,10 @@ pub fn parse_meta_data<'a>(input: &str) -> IResult<&str, ParsedItem> {
         }
 
         let (input, _) = tag(")")(input)?;
-        new_input = input;
+        Ok(input)
     } else {
-        new_input = input;
-    }
-
-    let input = new_input;
+        Ok(input)
+    }?;
 
     let (input, _) = space0(input)?;
     let (input, content) = parse_content(input)?;

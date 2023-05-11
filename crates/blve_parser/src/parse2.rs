@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 
-use crate::structs::blocks::{LanguageBlock, MetaData, ParsedItem};
+use crate::structs::blocks::{LanguageBlock, ParsedItem};
 extern crate nom;
 
-use crate::parsers::{language_block::parse_language_block, metadata::parse_meta_data};
+
 use crate::structs::detailed_blocks::DetailedBlock;
 use crate::structs::detailed_language_blocks::DetailedLanguageBlocks;
 use crate::structs::detailed_meta_data::DetailedMetaData;
 
 use html_parser::Dom;
-use nom::{branch::alt, multi::many0, IResult};
+
 use rome_js_parser;
 use rome_js_syntax::SourceType;
 

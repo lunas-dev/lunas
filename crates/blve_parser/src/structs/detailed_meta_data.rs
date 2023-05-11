@@ -3,8 +3,7 @@ use nom::{
     bytes::complete::{is_not, tag, take_while1},
     character::complete::{alphanumeric0, alphanumeric1, space0},
     combinator::{all_consuming, opt},
-    error::{ErrorKind, ParseError},
-    AsChar, IResult, InputTakeAtPosition,
+    IResult,
 };
 
 use super::blocks::MetaData;
@@ -115,7 +114,7 @@ use nom::{
     branch::alt,
     bytes::complete::take_while,
     character::complete::{char, multispace1},
-    sequence::{pair, preceded, tuple},
+    sequence::{preceded, tuple},
 };
 
 fn is_alphanumeric_underscore(c: char) -> bool {
