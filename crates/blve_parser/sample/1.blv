@@ -1,0 +1,14 @@
+@input message = "hey"
+@input optional:string?
+@use MyComponent from './components/my-component.blv'
+
+@input(param:hey) optional?
+html:
+  <div>
+      <MyComponent></MyComponent>
+      <MyComponent />
+    <h1>
+      Hello World
+    </h1>
+  </div>
+@input finalInput = "final input"
