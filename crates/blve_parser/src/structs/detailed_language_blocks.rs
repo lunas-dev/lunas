@@ -1,6 +1,5 @@
 use html_parser::Dom;
 use rome_js_syntax::AnyJsRoot;
-// use rome_js_parser::
 
 #[derive(Debug)]
 pub struct DetailedLanguageBlocks {
@@ -9,4 +8,3 @@ pub struct DetailedLanguageBlocks {
     pub js: Option<AnyJsRoot>,
 }
 
-// parsejs

@@ -24,20 +24,6 @@ pub fn parse_language_block(input: &str) -> IResult<&str, ParsedItem> {
 
     let (input, content) = indented_content(input)?;
 
-    // let (input, content) = recognize(nom::multi::many_till(
-    //     nom::character::complete::anychar,
-    //     alt((
-    //         value(("@", ""), peek(tag("@"))),
-    //         value(("EOF", ""), eof),
-    //         map(
-    //             pair(alphanumeric1, preceded(multispace0, tag(":"))),
-    //             |(s1, s2)| (s1, s2),
-    //         ),
-    //     )),
-    // ))(input)?;
-
-    // print input and content and language_name
-
     Ok((
         input,
         ParsedItem::LanguageBlock(LanguageBlock {
@@ -47,41 +33,6 @@ pub fn parse_language_block(input: &str) -> IResult<&str, ParsedItem> {
     ))
 }
 
-// fn is_space(c: char) -> bool {
-//   c == ' ' || c == '\t'
-// }
-
-// fn indented_line(input: &str) -> IResult<&str, &str> {
-//   let (input, _) = take_while1(is_space)(input)?;
-//   let (input, content) = take_while(|c| c != '\n')(input)?;
-//   let (input, _) = newline(input)?;
-//   Ok((input, content))
-// }
-
-// fn unindented_line(input: &str) -> IResult<&str, &str> {
-//   let (input, _) = tag("\n")(input)?;
-//   let (input, content) = take_while(|c| c != '\n' && !is_space(c))(input)?;
-//   let (input, _) = newline(input)?;
-//   Ok((input, content))
-// }
-
-// fn eof(input: &str) -> IResult<&str, &str> {
-//   let (input, _) = nom::combinator::eof(input)?;
-//   Ok((input, ""))
-// }
-
-// fn indented_text(input: &str) -> IResult<&str, String> {
-//     let (input, lines) = many_till(indented_line, alt((unindented_line)))(input)?;
-//     let content = lines.0.join("\n");
-//     Ok((input, content))
-// }
-
-/*
-
-Indent Parser
-
- */
-
 fn is_space_or_tab(c: char) -> bool {
     c == ' ' || c == '\t'
 }
@@ -89,10 +40,6 @@ fn is_space_or_tab(c: char) -> bool {
 fn is_not_line_ending(c: char) -> bool {
     c != '\n' && c != '\r'
 }
-
-// fn is_not_line_ending_or_eof(c:char)->{
-//     // is_not_line_ending(c) && c !=
-// }
 
 fn indent(input: &str) -> IResult<&str, &str> {
     take_while(is_space_or_tab)(input)
@@ -104,7 +51,6 @@ fn indented_line<'a>(indentation: &'a str) -> impl Fn(&'a str) -> IResult<&'a st
         if ret != None {
             return Ok((input, ""));
         }
-        println!("input is: {}", input);
         let (input, _) = tag(indentation)(input)?;
         let (input, line) = take_while(is_not_line_ending)(input)?;
         let (input, _) = line_ending(input)?;
@@ -121,14 +67,6 @@ fn content_of_first_line(input: &str) -> IResult<&str, &str> {
     Ok((input, content))
 }
 
-// fn not_starting_with_indent<'a>(
-//     indentation: &'a str,
-// ) -> impl Fn(&'a str) -> IResult<&'a str, &'a str> {
-//     move |input: &'a str| {
-//         let (_,_) = peek(not(indent))?;
-//     }
-// }
-
 fn indented_content(input: &str) -> IResult<&str, String> {
     let (input, _) = take_empty_lines(input)?;
     let (input, initial_indentation) = indent(input)?;
@@ -140,8 +78,6 @@ fn indented_content(input: &str) -> IResult<&str, String> {
         indented_line(initial_indentation),
         peek(not(alt((tag(initial_indentation), tag("\n"))))),
     )(input)?;
-
-    println!("lines: {:?}", lines);
 
     lines.insert(0, content_of_first_line);
 

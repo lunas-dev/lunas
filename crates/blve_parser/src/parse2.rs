@@ -89,9 +89,4 @@ fn parse_language_blocks<'a>(blks: Vec<LanguageBlock>) -> Result<DetailedLanguag
         }
         Err(_) => return Err("Invalid html block"),
     }
-    // Ok(DetailedLanguageBlocks {
-    //     dom: parsed_html,
-    //     css: (),
-    //     js: (),
-    // })
 }

@@ -43,10 +43,7 @@ impl<'a> DetailedMetaData {
                         is_nullable: is_nullable,
                     }))
                 }
-                Err(e) => {
-                    println!("{:?}", e);
-                    Err("error parsing input content")
-                }
+                Err(_) => Err("error parsing input content"),
             }
         } else if simple_meta_data.kind == "use" {
             parse_component_use_statement(&simple_meta_data.content)
@@ -57,28 +54,13 @@ impl<'a> DetailedMetaData {
                     })
                 })
                 .map_err(|_| "error parsing use statement")
-            // Ok(Self::PropsInput(PropsInput {
-            //     variable_name: "".to_string(),
-            //     type_of_value: "".to_string(),
-            //     is_nullable: false,
-            //     initial_value: Some("".to_string()),
-            // }))
         } else {
-            println!("{}", simple_meta_data.kind);
             Err("input type is neither input nor use")
-            // Err(format!("input type is neither input nor use {}", simple_meta_data.kind).as_str())
         }
     }
 }
 
 fn parse_input_content(input: &str) -> IResult<&str, (&str, &str, Option<&str>, bool)> {
-    // let (input, type_of_value) = nom::character::complete::alpha1(input)?;
-    // let (input, initial_value) = nom::character::complete::alpha1(input)?;
-    // let (input, is_nullable) = nom::character::complete::alpha1(input)?;
-
-    // log input
-    println!("input:: {}", input);
-
     let (input, (_, variable_name, _, _, _, type_name, optional_question_mark, content)) =
         permutation((
             space0,
@@ -135,10 +117,3 @@ fn parse_component_use_statement(input: &str) -> IResult<&str, (&str, &str, &str
         preceded(multispace1, parse_string),
     )))(input)
 }
-
-/*
-
-message = "hey"
- optional:string?
-
- */
