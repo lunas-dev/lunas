@@ -2,12 +2,14 @@ mod parse2;
 mod parser1;
 mod parsers;
 mod structs;
+use nanoid::nanoid;
 use parse2::parse2;
 use parser1::parse1;
 
 fn main() {
-    // load ./sample/1.blv
-    let input = std::fs::read_to_string("./sample/1.blv").unwrap();
+    let filenum = "3";
+    let filepath = format!("./sample/{}.blv", filenum);
+    let input = std::fs::read_to_string(filepath).unwrap();
 
     let a = parse1(input.as_str());
 
@@ -17,6 +19,10 @@ fn main() {
             match c {
                 Ok(d) => {
                     println!("{:#?}", d);
+                    let id = nanoid!();
+                    // gen random string for filename
+                    let filename = format!("{}_{}.blvestruct", filenum, id);
+                    std::fs::write(filename, format!("{:#?}", d)).unwrap();
                     return;
                 }
                 Err(e) => {
@@ -28,4 +34,3 @@ fn main() {
         Err(_) => println!("err"),
     };
 }
-

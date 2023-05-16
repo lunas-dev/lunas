@@ -1,4 +1,4 @@
-@input message = "hey"
+@input message:string = "hey"
 @input optional:string?
 @use MyComponent from './components/my-component.blv'
 html:
