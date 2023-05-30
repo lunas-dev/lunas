@@ -18,11 +18,32 @@ fn main() {
             let c = parse2(b);
             match c {
                 Ok(d) => {
-                    println!("{:#?}", d);
+                    match &d.detailed_language_blocks.js {
+                        Some(js) => {
+                            let js = js.as_js_module();
+                            match js {
+                                Some(js) => {
+                                    // js.source_type = Some(rome_js_syntax::SourceType::Module);
+                                    println!("{:#?}", js);
+
+                                    // js.
+
+                                    let a = js.to_string();
+                                    println!("{}", a);
+                                }
+                                None => {}
+                            }
+                            // println!("{:#?}", js);
+                        }
+                        None => {
+                            // Err("No js block")
+                        }
+                    }
+                    println!("{:#?}", &d);
                     let id = nanoid!();
-                    // gen random string for filename
                     let filename = format!("{}_{}.blvestruct", filenum, id);
-                    std::fs::write(filename, format!("{:#?}", d)).unwrap();
+                    std::fs::write(filename, format!("{:#?}", d.detailed_language_blocks.js))
+                        .unwrap();
                     return;
                 }
                 Err(e) => {
