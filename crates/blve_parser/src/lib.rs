@@ -1,34 +1,26 @@
-/* mod parse2;
+mod parse2;
 mod parser1;
 mod parsers;
 mod structs;
+mod swc_parser;
+
 use parse2::parse2;
 use parser1::parse1;
+use structs::detailed_blocks::DetailedBlock;
 
-fn parse(input:String) -> Result<structs::detailed_blocks::DetailedBlock, &str> {
-    let a = parse1(input.as_str());
-
-    match a {
-        Ok((_, b)) => {
-            let c = parse2(b);
-            match c {
-                Ok(d) => {
-                    println!("{:#?}", d);
-                    let k = "{:#?}";
-                    // save k as ${random}.blvestruct file
-
-
-                    d
-                }
-                Err(e) => {
-                    println!("{:?}", e);
-                    return Err(e);
-                }
-            }
+pub fn parse_blve_file(input: &str) -> Result<DetailedBlock, String> {
+    let parsed_items = match parse1(input) {
+        Ok(r) => {
+            let (_, parsed_items) = r;
+            Ok(parsed_items)
         }
-        Err(e) => {
-          Err(e.to_string().as_str())
-        },
+        Err(e) => Err(e.to_string()),
+    }?;
+
+    let detailed_block = match parse2(parsed_items) {
+        Ok(r) => r,
+        Err(e) => return Err(format!("{:?}", e)),
     };
+
+    Ok(detailed_block)
 }
- */

@@ -2,9 +2,12 @@ mod parse2;
 mod parser1;
 mod parsers;
 mod structs;
+mod swc_parser;
 use nanoid::nanoid;
 use parse2::parse2;
 use parser1::parse1;
+#[macro_use]
+extern crate swc_common;
 
 fn main() {
     let filenum = "3";
@@ -19,21 +22,7 @@ fn main() {
             match c {
                 Ok(d) => {
                     match &d.detailed_language_blocks.js {
-                        Some(js) => {
-                            let js = js.as_js_module();
-                            match js {
-                                Some(js) => {
-                                    // js.source_type = Some(rome_js_syntax::SourceType::Module);
-                                    println!("{:#?}", js);
-
-                                    // js.
-
-                                    let a = js.to_string();
-                                    println!("{}", a);
-                                }
-                                None => {}
-                            }
-                            // println!("{:#?}", js);
+                        Some(_js) => {
                         }
                         None => {
                             // Err("No js block")
@@ -42,8 +31,7 @@ fn main() {
                     println!("{:#?}", &d);
                     let id = nanoid!();
                     let filename = format!("{}_{}.blvestruct", filenum, id);
-                    std::fs::write(filename, format!("{:#?}", d.detailed_language_blocks.js))
-                        .unwrap();
+                    std::fs::write(filename, format!("{:#?}", d)).unwrap();
                     return;
                 }
                 Err(e) => {
