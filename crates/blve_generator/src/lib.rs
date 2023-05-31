@@ -3,7 +3,7 @@ mod transformers;
 use blve_parser::parse_blve_file;
 use transformers::utils::search_json;
 
-use crate::transformers::utils::add_dot_v_to_script;
+use crate::transformers::utils::add_strings_to_script;
 
 pub fn get_parse_result() {
     // "Hello, world!".to_string()
@@ -23,13 +23,13 @@ script:
 
     if let Some(js_block) = b.detailed_language_blocks.js {
         let result = search_json(&js_block.ast, &vec!["count".to_string()], None);
-        let mut positions: Vec<u32> = vec![];
+        let mut positions = vec![];
         for r in result {
-            if let structs::TransformAnalysisResult::AddDotV(dotv) = r {
-                positions.push(dotv.position);
-            }
+            positions.push(r);
+            // if let structs::TransformAnalysisResult::AddDotV(dotv) = r {
+            // }
         }
-        let output = add_dot_v_to_script(positions, &js_block.raw);
+        let output = add_strings_to_script(positions, &js_block.raw);
         println!("{}", output);
     }
 }

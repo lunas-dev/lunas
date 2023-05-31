@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-html_parser = { git = "https://github.com/s19514tt/rust-html-parser-fork-for-blve/", rev = "ad89bb03aaba9c62b020927ca06cc6d3917b387a" }
+html_parser = { git = "https://github.com/s19514tt/rust-html-parser-fork-for-blve/", rev = "c3beb6e38aa70ec5694357d6bd4241987bbc9cd3" }
 nanoid = "0.4.0"
 nom = "7.1.3"
 rome_js_parser = "0.0.2"
