@@ -1,28 +1,82 @@
-use rome_js_syntax::JsVariableStatement;
+// Identifier
 
-fn transform_variable_statement(node: &JsVariableStatement) -> String {
-  let declaration = node.declaration()?;
-  // let declarators = declaration.declarators().;
-  // let declarator = &declarators[0];
+/* "expression": Object {
+  "argument": Object {
+      "optional": Bool(false),
+      "span": Object {
+          "ctxt": Number(0),
+          "end": Number(44),
+          "start": Number(39),
+      },
+      "type": String("Identifier"),
+      "value": String("count"),
+  },
+  "operator": String("++"),
+  "prefix": Bool(false),
+  "span": Object {
+      "ctxt": Number(0),
+      "end": Number(46),
+      "start": Number(39),
+  },
+  "type": String("UpdateExpression"),
+}, */
 
-  // Get variable name
-  // let variable_name = declarator.id().name();
+use serde_json::{Map, Value};
 
-  for item in declaration.declarators().into_iter(){
-    let hitem = item?;
-  }
+use crate::structs::{AddDotV, TransformAnalysisResult, TransformAnalysisResults};
 
-  // Get variable value assuming it's a JsStringLiteralExpression
-  let variable_value = if let Some(init_clause) = declarator.initializer() {
-      if let Some(str_literal_exp) = init_clause.expression().as_string_literal_expression() {
-          str_literal_exp.value()
-      } else {
-          panic!("Initializer is not a string literal!");
-      }
-  } else {
-      panic!("Variable has no initializer!");
-  };
+pub fn search_json(
+    json: &Value,
+    variables: &Vec<String>,
+    parent: Option<&Map<String, Value>>,
+) -> TransformAnalysisResults {
+    if let Value::Object(obj) = json {
+        if obj.contains_key("type") && obj["type"] == Value::String("Identifier".into()) {
+            if parent.is_some()
+                && parent.unwrap().get("type")
+                    != Some(&Value::String("VariableDeclarator".to_string()))
+            {
+                if let Some(Value::String(variable_name)) = obj.get("value") {
+                    if variables.iter().any(|e| e == variable_name) {
+                        if let Some(Value::Object(span)) = obj.get("span") {
+                            if let Some(Value::Number(end)) = span.get("end") {
+                                return vec![TransformAnalysisResult::AddDotV(AddDotV {
+                                    position: end.as_u64().unwrap() as u32,
+                                })];
+                            }
+                        }
+                    }
+                }
+            }
 
-  // Transform to new code
-  format!("const {} = new valueObj({}, 1, refs);", variable_name, variable_value)
+            return vec![];
+        } else {
+            let mut result = vec![];
+            for (_key, value) in obj {
+                let search_result = search_json(value, variables, Some(&obj));
+                result.extend(search_result);
+            }
+            return result;
+        }
+    } else if let Value::Array(arr) = json {
+        let mut result = vec![];
+        for value in arr {
+            let search_result = search_json(value, variables, None);
+            result.extend(search_result);
+        }
+        return result;
+    }
+    return vec![];
+}
+
+pub fn add_dot_v_to_script(positions: Vec<u32>, script: &String) -> String {
+    let mut result = String::new();
+    let mut last_position = 0;
+    for position in positions {
+        result.push_str(&script[last_position..position as usize]);
+        result.push_str(".v");
+        last_position = position as usize;
+    }
+    result.push_str(&script[last_position..]);
+    return result;
 }
