@@ -12,7 +12,7 @@ use crate::{
 };
 
 // TODO: bをimmutableにする&リネームする
-pub fn generate_js_from_blocks(b: &mut DetailedBlock) -> String {
+pub fn generate_js_from_blocks(b: &mut DetailedBlock) -> (String, Option<String>) {
     let (variables, variable_names, js_output) =
         if let Some(js_block) = &b.detailed_language_blocks.js {
             let mut positions = vec![];
@@ -48,8 +48,9 @@ pub fn generate_js_from_blocks(b: &mut DetailedBlock) -> String {
     let update_func_code = gen_update_func_statement(elm_and_var_rel, variables);
     codes.push(update_func_code);
     let full_code = gen_full_code(codes);
+    let css_code = b.detailed_language_blocks.css.clone();
 
-    full_code
+    (full_code, css_code)
 }
 
 fn gen_full_code(codes: Vec<String>) -> String {

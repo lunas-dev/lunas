@@ -27,5 +27,5 @@ script:
 
     let mut b = parse_blve_file(a).unwrap();
     let code = generate_js_from_blocks(&mut b);
-    println!("{}", code);
+    println!("{}", code.0);
 }
