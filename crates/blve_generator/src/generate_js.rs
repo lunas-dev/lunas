@@ -11,7 +11,7 @@ use crate::{
     },
 };
 
-// TODO:bをimmutableにする
+// TODO: bをimmutableにする&リネームする
 pub fn generate_js_from_blocks(b: &mut DetailedBlock) -> String {
     let (variables, variable_names, js_output) =
         if let Some(js_block) = &b.detailed_language_blocks.js {
@@ -122,7 +122,6 @@ fn gen_binary_map_from_bool(bools: Vec<bool>) -> u32 {
 fn create_event_listener(actions_and_targets: Vec<ActionAndTarget>) -> Vec<String> {
     let mut result = vec![];
     for action_and_target in actions_and_targets {
-        // addEvListener(abcref, "click", increment);
         result.push(format!(
             "addEvListener({}Ref, \"{}\", {});",
             action_and_target.target, action_and_target.action_name, action_and_target.action
@@ -174,18 +173,6 @@ fn gen_update_func_statement(
     );
 
     result
-    // let mut result = format!(
-    //     "refs[0] & 1 && replaceText({}Ref, {});",
-    //     variable_name, variable_value
-    // );
-
-    /*
-
-    refs[2] = genUpdateFunc(() => {
-        refs[0] & 1 && replaceText(b.v, abcref);
-    });
-
-     */
 }
 
 fn get_combined_binary_number(numbers: Vec<u32>) -> u32 {
@@ -195,20 +182,3 @@ fn get_combined_binary_number(numbers: Vec<u32>) -> u32 {
     }
     result
 }
-
-// mod transformers;
-
-// pub fn add(left: usize, right: usize) -> usize {
-//     left + right
-// }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-//     #[test]
-//     fn it_works() {
-//         let result = add(2, 2);
-//         assert_eq!(result, 4);
-//     }
-// }

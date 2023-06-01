@@ -301,25 +301,30 @@ fn escape_html(s: &str) -> String {
     format!("escapeHtml({})", s)
 }
 
-fn append_v_to_vars(
-    s: &str,
-    vars: &Vec<String>,
-    existing_depending_vars: &mut Vec<String>,
-) -> String {
-    let mut result = s.to_string();
-    for var in vars {
-        if word_exists_in_text(&var, &s)
-            && existing_depending_vars.iter().find(|v| *v == var) == None
-        {
-            existing_depending_vars.push(var.clone());
-            let replacement = format!("{}.v", var);
-            result = result.replace(var, &replacement);
-        }
+fn append_v_to_vars(input: &str, variables: &[String]) -> (String, Vec<String>) {
+    let mut depending_vars = Vec::new();
+    let operators = ['+', '-', '*', '/', '%'];
+    let mut spaced_input = input.to_string();
+    for &op in &operators {
+        spaced_input = spaced_input.replace(op, &format!(" {} ", op));
     }
-    result
-}
 
-// TODO:テストを書く
+    let parts: Vec<String> = spaced_input
+        .split_whitespace()
+        .map(|part| {
+            let trimmed = part.trim();
+            if variables.contains(&trimmed.to_string()) {
+                depending_vars.push(trimmed.to_string());
+                format!("{}.v", trimmed)
+            } else {
+                trimmed.to_string()
+            }
+        })
+        .collect();
+
+    let output = parts.join("");
+    (output, depending_vars)
+}
 // FIXME:escapeTextは各バインディングに1つだけでいい
 // 現在:${escapeHtml(count.v+count.v)} count ${escapeHtml(count)} ${escapeHtml( count + count )}
 // 将来的:${escapeHtml(`${count.v+count.v} count ${count} ${ count + count }`)}
@@ -336,14 +341,17 @@ fn replace_text_with_reactive_value(code: &mut String, variables: &Vec<String>) 
             let end = end + start;
             let pre_bracket = &code[last_end..start];
             let in_bracket = &code[start + 2..end];
+            let _post_bracket = &code[end + 1..];
 
             new_code.push_str(pre_bracket);
             new_code.push_str(start_tag);
-            let output = append_v_to_vars(in_bracket, &variables, &mut depending_vars);
+            let (output, dep_vars) = append_v_to_vars(in_bracket, variables);
             new_code.push_str(&escape_html(&output));
             new_code.push_str(end_tag);
 
             last_end = end + 1;
+
+            depending_vars.extend(dep_vars);
         }
     }
 
@@ -352,7 +360,30 @@ fn replace_text_with_reactive_value(code: &mut String, variables: &Vec<String>) 
     depending_vars
 }
 
-fn word_exists_in_text(word: &str, text: &str) -> bool {
-    text.split(|c: char| !c.is_alphanumeric())
-        .any(|w| w == word)
+// test
+#[cfg(test)]
+mod tests {
+    use super::replace_text_with_reactive_value;
+
+    #[test]
+    fn exploration() {
+        let code = "escapeHtml(count2.v+count.v)";
+        let mut code = code.clone().to_string();
+        replace_text_with_reactive_value(
+            &mut code,
+            &vec!["count".to_string(), "count2".to_string()],
+        );
+        assert_eq!(code, "escapeHtml(count2.v+count.v)");
+    }
+
+    #[test]
+    fn exploration2() {
+        let code = "escapeHtml( count2.v + count.v )";
+        let mut code = code.clone().to_string();
+        replace_text_with_reactive_value(
+            &mut code,
+            &vec!["count".to_string(), "count2".to_string()],
+        );
+        assert_eq!(code, "escapeHtml( count2.v + count.v )");
+    }
 }

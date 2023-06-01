@@ -13,6 +13,7 @@ html:
   <button @click="increment">${count}</button>
   <div>${count2}</div>
   <button @click="increment2">count2++</button>
+  <div>${count2+count}</div>
 script:
   let count = 0
   function increment(){
