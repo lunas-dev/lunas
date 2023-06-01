@@ -6,7 +6,7 @@ mod swc_parser;
 
 use parse2::parse2;
 use parser1::parse1;
-use structs::detailed_blocks::DetailedBlock;
+pub use structs::detailed_blocks::DetailedBlock;
 
 pub fn parse_blve_file(input: &str) -> Result<DetailedBlock, String> {
     let parsed_items = match parse1(input) {

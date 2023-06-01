@@ -193,7 +193,6 @@ pub fn check_html_elms(
                         // extract action
                         let action_name = &key[1..];
                         // TODO:関数に切り分ける
-                        println!("element.attributes: {:?}", element.attributes);
                         let id: String = if let Some(Some(id)) = element.attributes.get("id") {
                             if needed_ids.iter().any(|x| x.id_name == id.clone()) {
                                 id.clone()
@@ -312,7 +311,6 @@ fn append_v_to_vars(
         if word_exists_in_text(&var, &s)
             && existing_depending_vars.iter().find(|v| *v == var) == None
         {
-            println!("word: {}", var);
             existing_depending_vars.push(var.clone());
             let replacement = format!("{}.v", var);
             result = result.replace(var, &replacement);
@@ -338,7 +336,6 @@ fn replace_text_with_reactive_value(code: &mut String, variables: &Vec<String>) 
             let end = end + start;
             let pre_bracket = &code[last_end..start];
             let in_bracket = &code[start + 2..end];
-            let post_bracket = &code[end + 1..];
 
             new_code.push_str(pre_bracket);
             new_code.push_str(start_tag);
@@ -359,71 +356,3 @@ fn word_exists_in_text(word: &str, text: &str) -> bool {
     text.split(|c: char| !c.is_alphanumeric())
         .any(|w| w == word)
 }
-
-// extern crate regex;
-
-// use regex::Regex;
-
-// fn word_exists_in_text(word: &str, text: &str) -> bool {
-//     let re = Regex::new(r"\W+").unwrap();
-//     let words_in_text: Vec<&str> = re.split(text).collect();
-//     words_in_text.contains(&word)
-// }
-
-// fn replace_text_with_reactive_value(text: &mut String, variables: &Vec<String>) {
-//     println!("replace_text_with_reactive_value");
-//     let new_text = text.clone();
-//     for variable in variables {
-//         /* if {variable} is inside of ${ and }, then excape it with escapeHtml */
-//         // for example
-//         // ${count + count} -> ${escapeHtml(count.v + count.v)}
-//         let mut start = 0;
-//         for _ in 0..2 {
-//             if let Some(start_and_end) = find_start_and_end_of_variable(&new_text[start..]) {
-//                 let (start, end) = start_and_end;
-//                 let start = start + start;
-//                 let end = end + start;
-//                 let variable_name = &new_text[start..end];
-//                 if variable_name == variable {
-//                     let new_text = format!(
-//                         "{}{}{}",
-//                         &new_text[..start],
-//                         &format!("escapeHtml({}.v)", variable),
-//                         &new_text[end..]
-//                     );
-//                     *text = new_text;
-//                     return;
-//                 }
-//                 start = end;
-//             }
-//         }
-//     }
-//     println!("new_text: {}", new_text);
-//     *text = new_text;
-// }
-
-// pub fn check_html_elms(nodes: Vec<Node>) {
-//     for node in nodes {
-//         match node {
-//             Node::Element(element) => {
-//                 if element.name == "input" {
-//                     if let Some(value) = element.attributes.get("value") {
-//                         if value.is_some()
-//                             && value.as_ref().unwrap().starts_with("{")
-//                             && value.as_ref().unwrap().ends_with("}")
-//                         {
-//                             println!("found input with reactive value");
-//                         }
-//                     }
-//                 }
-//                 check_html_elms(element.children);
-//             }
-//             Node::Text(text) => {
-//                 if text.starts_with("{") && text.ends_with("}") {
-//                     println!("found text with reactive value");
-//                 }
-//             }
-//             _ => {}
-//         }
-//     }
-// }

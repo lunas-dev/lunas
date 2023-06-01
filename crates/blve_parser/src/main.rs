@@ -28,7 +28,6 @@ fn main() {
                             // Err("No js block")
                         }
                     }
-                    println!("{:#?}", &d);
                     let id = nanoid!();
                     let filename = format!("{}_{}.blvestruct", filenum, id);
                     std::fs::write(filename, format!("{:#?}", d)).unwrap();
