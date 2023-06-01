@@ -9,19 +9,19 @@ fn main() {
 
     let a = r#"
 html:
-    <h1>Hello Blve!</h1>
-    <button id="abc" @click="increment">${count+count} count ${count} ${ count + count }</button>
+  <h1>Hello Blve!</h1>
+  <button @click="increment">${count}</button>
+  <div>${count2}</div>
+  <button @click="increment2">count2++</button>
 script:
-    let count = 0
-    let count2 = 0
-    let count3 = 0
-    function increment(){
-        count++
-        count++
-        count++
-        count++
-        count = count + 200
-    }
+  let count = 0
+  function increment(){
+    count++
+  }
+  let count2 = 10
+  function increment2(){
+    count2++
+  }
 "#;
 
     let mut b = parse_blve_file(a).unwrap();

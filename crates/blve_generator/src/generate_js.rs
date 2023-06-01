@@ -1,6 +1,6 @@
 use std::vec;
 
-use blve_parser::{DetailedBlock};
+use blve_parser::DetailedBlock;
 
 use crate::{
     structs::{
@@ -11,6 +11,7 @@ use crate::{
     },
 };
 
+// TODO:bをimmutableにする
 pub fn generate_js_from_blocks(b: &mut DetailedBlock) -> String {
     let (variables, variable_names, js_output) =
         if let Some(js_block) = &b.detailed_language_blocks.js {
@@ -24,6 +25,7 @@ pub fn generate_js_from_blocks(b: &mut DetailedBlock) -> String {
             for r in result {
                 positions.push(r);
             }
+            positions.sort_by(|a, b| a.position.cmp(&b.position));
             let output = add_strings_to_script(positions, &js_block.raw);
             (variables, variable_names, output)
         } else {
@@ -59,7 +61,7 @@ fn gen_full_code(codes: Vec<String>) -> String {
         .join("\n");
     format!(
         r#"
-import {{ reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText }} from '../a.js'
+import {{ reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText }} from 'blve/runtime'
 export default function(elm) {{
     const refs = [0, false, null];
 {code}
@@ -153,8 +155,8 @@ fn gen_update_func_statement(
 
         let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
         replace_statements.push(format!(
-            "refs[0] & {:?} && replaceText({}Ref, `{}`);",
-            combined_number, target_id, elm_and_variable_relation.content_of_element
+            "refs[0] & {:?} && replaceText(`{}`, {}Ref);",
+            combined_number, elm_and_variable_relation.content_of_element, target_id
         ));
     }
 
