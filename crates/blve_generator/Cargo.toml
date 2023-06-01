@@ -8,5 +8,5 @@ edition = "2021"
 [dependencies]
 blve_parser = { version = "0.1.0", path = "../blve_parser" }
 serde_json = "1.0.96"
-html_parser = { git = "https://github.com/s19514tt/rust-html-parser-fork-for-blve/", rev = "c3beb6e38aa70ec5694357d6bd4241987bbc9cd3" }
+html_parser = { git = "https://github.com/s19514tt/rust-html-parser-fork-for-blve/", rev = "952691db3643934e98b4d55853bb8adceb6b1ebc" }
 nanoid = "0.4.0"

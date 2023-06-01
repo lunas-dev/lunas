@@ -25,9 +25,9 @@ pub struct NeededIdName {
     pub to_delete: bool,
 }
 
-// TODO: contentを追加
 #[derive(Debug)]
 pub struct ElmAndVariableRelation {
     pub elm_id: String,
     pub variable_names: Vec<String>,
+    pub content_of_element: String,
 }

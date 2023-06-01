@@ -193,6 +193,7 @@ pub fn check_html_elms(
                         // extract action
                         let action_name = &key[1..];
                         // TODO:関数に切り分ける
+                        println!("element.attributes: {:?}", element.attributes);
                         let id: String = if let Some(Some(id)) = element.attributes.get("id") {
                             if needed_ids.iter().any(|x| x.id_name == id.clone()) {
                                 id.clone()
@@ -258,10 +259,14 @@ pub fn check_html_elms(
                             });
                             new_id
                         };
-                        elm_and_var_relation.push(ElmAndVariableRelation {
-                            elm_id: id,
-                            variable_names: var_deps,
-                        });
+                        // TODO:以下のIf文のコーナーケースを考える
+                        if element.children.len() == 1 && element.children[0].is_text() {
+                            elm_and_var_relation.push(ElmAndVariableRelation {
+                                elm_id: id,
+                                variable_names: var_deps,
+                                content_of_element: element.children[0].as_text().clone(),
+                            });
+                        }
                     }
                 }
                 None
@@ -318,6 +323,8 @@ fn append_v_to_vars(
 
 // TODO:テストを書く
 // FIXME:escapeTextは各バインディングに1つだけでいい
+// 現在:${escapeHtml(count.v+count.v)} count ${escapeHtml(count)} ${escapeHtml( count + count )}
+// 将来的:${escapeHtml(`${count.v+count.v} count ${count} ${ count + count }`)}
 fn replace_text_with_reactive_value(code: &mut String, variables: &Vec<String>) -> Vec<String> {
     let start_tag = "${";
     let end_tag = "}";
