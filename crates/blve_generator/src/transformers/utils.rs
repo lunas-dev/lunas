@@ -303,9 +303,9 @@ fn escape_html(s: &str) -> String {
 
 fn append_v_to_vars(input: &str, variables: &[String]) -> (String, Vec<String>) {
     let mut depending_vars = Vec::new();
-    let operators = ['+', '-', '*', '/', '%'];
+    let operators = ["+", "-", "*", "/", "%", "==", "!=", "<", ">", "<=", ">=", "?", ":"];
     let mut spaced_input = input.to_string();
-    for &op in &operators {
+    for op in &operators {
         spaced_input = spaced_input.replace(op, &format!(" {} ", op));
     }
 
@@ -322,7 +322,7 @@ fn append_v_to_vars(input: &str, variables: &[String]) -> (String, Vec<String>) 
         })
         .collect();
 
-    let output = parts.join("");
+    let output = parts.join(" ");  // Ensure that there's space between parts
     (output, depending_vars)
 }
 // FIXME:escapeTextは各バインディングに1つだけでいい
@@ -385,5 +385,13 @@ mod tests {
             &vec!["count".to_string(), "count2".to_string()],
         );
         assert_eq!(code, "escapeHtml( count2.v + count.v )");
+    }
+
+    #[test]
+    fn exploration3() {
+        let code = "${interval==null?'start':'clear'}";
+        let mut code = code.clone().to_string();
+        replace_text_with_reactive_value(&mut code, &vec!["interval".to_string()]);
+        assert_eq!(code, "${escapeHtml(interval.v == null ? 'start' : 'clear')}");
     }
 }
