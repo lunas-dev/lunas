@@ -9,20 +9,33 @@ fn main() {
 
     let a = r#"
 html:
-  <h1>Hello Blve!</h1>
-  <button @click="increment">${count}</button>
-  <div>${count2}</div>
-  <button @click="increment2">count2++</button>
-  <div>${count2+count}</div>
+  <h1 id='abc'>Hello Blve!</h1>
+  <div >${count}</div>
+  <button @click="increment">+1</button>
+  <button @click="clear">${interval==null?"start":"clear"}</button>
 script:
   let count = 0
   function increment(){
     count++
+    console.log(count)
   }
-  let count2 = 10
-  function increment2(){
-    count2++
+  function clear(){
+    if(interval){
+      clearInterval(interval)
+      interval = null
+    }else{
+      interval = setInterval(increment, 2000)
+    }
   }
+  let interval = setInterval(increment, 2000)
+style:
+  h1 {
+    color: blue;
+  }
+  * {
+    font-family: 'Noto Sans', sans-serif;
+  }
+
 "#;
 
     let mut b = parse_blve_file(a).unwrap();

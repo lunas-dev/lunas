@@ -4,4 +4,5 @@ build:
 	cp ./crates/blve_compiler/pkg/*.ts ./npm-pkg/src/wasm-compiler/
 	cp ./crates/blve_compiler/pkg/*.wasm ./npm-pkg/src/wasm-compiler/
 	cd ./npm-pkg/src/wasm-compiler && npm run build
-	cp -r ./npm-pkg/src/wasm-compiler/ ./npm-pkg/dist/wasm-compiler/
+	mkdir -p ./npm-pkg/dist/wasm-compiler
+	cp -r ./npm-pkg/src/wasm-compiler/* ./npm-pkg/dist/wasm-compiler/

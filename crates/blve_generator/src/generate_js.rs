@@ -62,7 +62,7 @@ fn gen_full_code(codes: Vec<String>) -> String {
         .join("\n");
     format!(
         r#"
-import {{ reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText }} from 'blve/runtime'
+import {{ reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText }} from 'blve/dist/runtime'
 export default function(elm) {{
     const refs = [0, false, null];
 {code}
