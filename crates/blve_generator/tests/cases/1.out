@@ -1,0 +1,35 @@
+
+import { reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText } from 'blve/dist/runtime'
+export default function(elm) {
+    const refs = [0, false, null];
+    let count = reactiveValue(0, 1, refs)
+    function increment(){
+      count.v++
+      console.log(count.v)
+    }
+    function clear(){
+      if(interval.v){
+        clearInterval(interval.v)
+        interval.v = null
+      }else{
+        interval.v = setInterval(increment, 2000)
+      }
+    }
+    let interval = reactiveValue(setInterval(increment, 2000), 2, refs)
+
+    elm.innerHTML = `<h1 id="abc">Hello Blve!</h1><div id="mootazyifx">${escapeHtml(count.v)}</div><button id="rlfoqsmtfn">+1</button><button id="gyivrhjnbo">${escapeHtml(interval.v == null ? "start" : "clear")}</button>`;
+
+    const [mootazyifxRef,rlfoqsmtfnRef,gyivrhjnboRef] = getElmRefs(["mootazyifx","rlfoqsmtfn","gyivrhjnbo"], 7);
+
+    addEvListener(rlfoqsmtfnRef, "click", increment);
+
+    addEvListener(gyivrhjnboRef, "click", clear);
+
+    refs[2] = genUpdateFunc(() => {
+        refs[0] & 1 && replaceText(`${escapeHtml(count.v)}`, mootazyifxRef);
+    
+        refs[0] & 2 && replaceText(`${escapeHtml(interval.v == null ? "start" : "clear")}`, gyivrhjnboRef);
+    
+    });
+
+}

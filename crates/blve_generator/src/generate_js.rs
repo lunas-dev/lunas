@@ -43,7 +43,6 @@ pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> (String, Option<String
 
     // Generate JavaScript
     let html_insert = format!("elm.innerHTML = `{}`;", html_str);
-    // let imports = "import { reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText } from '../a.js'";
     let ref_getter_expression = gen_ref_getter_from_needed_ids(needed_id);
     let event_listener_codes = create_event_listener(action_and_target);
     let mut codes = vec![js_output, html_insert, ref_getter_expression];
