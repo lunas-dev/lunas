@@ -4,7 +4,7 @@ use crate::structs::{
     ActionAndTarget, AddStringToPosition, ElmAndVariableRelation, NeededIdName,
     VariableNameAndAssignedNumber,
 };
-use html_parser::Node;
+use blve_html_parser::Node;
 use serde_json::{Map, Value};
 pub fn search_json(
     json: &Value,

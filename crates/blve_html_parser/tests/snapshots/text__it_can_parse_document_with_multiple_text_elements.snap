@@ -1,0 +1,15 @@
+---
+source: tests/text.rs
+expression: dom
+---
+{
+  "treeType": "documentFragment",
+  "children": [
+    "hello world\nhere's another line for you!\n",
+    {
+      "name": "div",
+      "variant": "void"
+    },
+    "\nThe end\n"
+  ]
+}

@@ -1,0 +1,16 @@
+---
+source: tests/element_attributes.rs
+expression: dom
+---
+{
+  "treeType": "documentFragment",
+  "children": [
+    {
+      "name": "div",
+      "variant": "void",
+      "attributes": {
+        "cat": "mjau mjau"
+      }
+    }
+  ]
+}

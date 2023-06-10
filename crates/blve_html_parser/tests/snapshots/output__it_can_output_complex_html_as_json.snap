@@ -1,0 +1,51 @@
+---
+source: tests/output.rs
+expression: dom
+---
+{
+  "treeType": "document",
+  "children": [
+    {
+      "name": "html",
+      "variant": "normal",
+      "attributes": {
+        "lang": "sv"
+      },
+      "children": [
+        {
+          "name": "head",
+          "variant": "normal",
+          "children": [
+            {
+              "name": "title",
+              "variant": "normal",
+              "children": [
+                "Här kan man va"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "body",
+          "variant": "normal",
+          "children": [
+            {
+              "name": "h1",
+              "variant": "normal",
+              "children": [
+                "Tjena världen!"
+              ]
+            },
+            {
+              "name": "p",
+              "variant": "normal",
+              "children": [
+                "Tänkte bara informera om att Sverige är bättre än Finland i ishockey."
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

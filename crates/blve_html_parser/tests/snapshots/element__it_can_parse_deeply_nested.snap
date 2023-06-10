@@ -1,0 +1,83 @@
+---
+source: tests/element.rs
+expression: dom
+---
+{
+  "treeType": "documentFragment",
+  "children": [
+    {
+      "name": "div",
+      "variant": "normal",
+      "classes": [
+        "1"
+      ],
+      "children": [
+        {
+          "name": "div",
+          "variant": "normal",
+          "classes": [
+            "1"
+          ],
+          "children": [
+            {
+              "name": "div",
+              "variant": "normal",
+              "classes": [
+                "1"
+              ],
+              "children": [
+                {
+                  "name": "div",
+                  "variant": "normal",
+                  "classes": [
+                    "1"
+                  ],
+                  "children": [
+                    {
+                      "name": "div",
+                      "variant": "normal",
+                      "classes": [
+                        "1"
+                      ],
+                      "children": [
+                        {
+                          "name": "div",
+                          "variant": "normal",
+                          "classes": [
+                            "1"
+                          ],
+                          "children": [
+                            {
+                              "name": "div",
+                              "variant": "normal",
+                              "classes": [
+                                "1"
+                              ],
+                              "children": [
+                                {
+                                  "name": "div",
+                                  "variant": "normal",
+                                  "classes": [
+                                    "1"
+                                  ],
+                                  "children": [
+                                    "this is deep",
+                                    "hello world\n                            "
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+---
+source: tests/element.rs
+expression: dom
+---
+{
+  "treeType": "documentFragment",
+  "children": [
+    {
+      "name": "div",
+      "variant": "normal",
+      "children": [
+        "comment",
+        {
+          "name": "div",
+          "variant": "void"
+        },
+        "\n    Hello\n    ",
+        {
+          "name": "div",
+          "variant": "normal",
+          "children": [
+            "\n        World\n    "
+          ]
+        }
+      ]
+    }
+  ]
+}

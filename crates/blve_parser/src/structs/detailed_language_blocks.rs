@@ -1,4 +1,4 @@
-use html_parser::Dom;
+use blve_html_parser::Dom;
 use serde_json::Value;
 
 #[derive(Debug)]
