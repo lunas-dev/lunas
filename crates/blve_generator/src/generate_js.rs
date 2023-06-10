@@ -11,10 +11,10 @@ use crate::{
     },
 };
 
-// TODO: bをimmutableにする&リネームする
-pub fn generate_js_from_blocks(b: &mut DetailedBlock) -> (String, Option<String>) {
+pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> (String, Option<String>) {
+    // Analyze JavaScript
     let (variables, variable_names, js_output) =
-        if let Some(js_block) = &b.detailed_language_blocks.js {
+        if let Some(js_block) = &blocks.detailed_language_blocks.js {
             let mut positions = vec![];
             let (variables, str_positions) = find_variable_declarations(&js_block.ast);
             for r in str_positions {
@@ -32,14 +32,17 @@ pub fn generate_js_from_blocks(b: &mut DetailedBlock) -> (String, Option<String>
             (vec![], vec![], "".to_string())
         };
 
-    let (action_and_target, needed_id, _, elm_and_var_rel) = check_html_elms(
-        &variable_names,
-        &mut b.detailed_language_blocks.dom.children,
-    );
+    // Clone HTML as mutable reference
+    let mut html = blocks.detailed_language_blocks.dom.clone();
 
-    let k = b.detailed_language_blocks.dom.to_string();
+    // Analyze HTML
+    let (action_and_target, needed_id, _, elm_and_var_rel) =
+        check_html_elms(&variable_names, &mut html.children);
 
-    let html_insert = format!("elm.innerHTML = `{}`;", k);
+    let html_str = html.to_string();
+
+    // Generate JavaScript
+    let html_insert = format!("elm.innerHTML = `{}`;", html_str);
     // let imports = "import { reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText } from '../a.js'";
     let ref_getter_expression = gen_ref_getter_from_needed_ids(needed_id);
     let event_listener_codes = create_event_listener(action_and_target);
@@ -48,7 +51,7 @@ pub fn generate_js_from_blocks(b: &mut DetailedBlock) -> (String, Option<String>
     let update_func_code = gen_update_func_statement(elm_and_var_rel, variables);
     codes.push(update_func_code);
     let full_code = gen_full_code(codes);
-    let css_code = b.detailed_language_blocks.css.clone();
+    let css_code = blocks.detailed_language_blocks.css.clone();
 
     (full_code, css_code)
 }
@@ -176,6 +179,12 @@ fn gen_update_func_statement(
     result
 }
 
+/// Returns a binary number that is the result of ORing all the numbers in the argument.
+/// ```
+/// let numbers = vec![0b0001, 0b0010, 0b0100];
+/// let result = get_combined_binary_number(numbers);
+/// assert_eq!(result, 0b0111);
+/// ```
 fn get_combined_binary_number(numbers: Vec<u32>) -> u32 {
     let mut result = 0;
     for (_, &value) in numbers.iter().enumerate() {

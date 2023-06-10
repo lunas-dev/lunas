@@ -38,7 +38,7 @@ style:
 
 "#;
 
-    let mut b = parse_blve_file(a).unwrap();
-    let code = generate_js_from_blocks(&mut b);
+    let b = parse_blve_file(a).unwrap();
+    let code = generate_js_from_blocks(&b);
     println!("{}", code.0);
 }
