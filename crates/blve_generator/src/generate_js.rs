@@ -34,10 +34,19 @@ pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> (String, Option<String
 
     // Clone HTML as mutable reference
     let mut html = blocks.detailed_language_blocks.dom.clone();
+    let mut needed_id = vec![];
+
+    let mut elm_and_var_relation = vec![];
+    let mut action_and_target = vec![];
 
     // Analyze HTML
-    let (action_and_target, needed_id, _, elm_and_var_rel) =
-        check_html_elms(&variable_names, &mut html.children);
+    check_html_elms(
+        &variable_names,
+        &mut html.children,
+        &mut needed_id,
+        &mut elm_and_var_relation,
+        &mut action_and_target,
+    );
 
     let html_str = html.to_string();
 
@@ -47,7 +56,7 @@ pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> (String, Option<String
     let event_listener_codes = create_event_listener(action_and_target);
     let mut codes = vec![js_output, html_insert, ref_getter_expression];
     codes.extend(event_listener_codes);
-    let update_func_code = gen_update_func_statement(elm_and_var_rel, variables);
+    let update_func_code = gen_update_func_statement(elm_and_var_relation, variables);
     codes.push(update_func_code);
     let full_code = gen_full_code(codes);
     let css_code = blocks.detailed_language_blocks.css.clone();
