@@ -47,6 +47,8 @@ fn test_case_files() {
     }
 }
 
+// FIXME: 本来テストに関係のあるコードまで消してしまう
+// 例 import { lue,,ner,unc,,t } from 'blve/dist/runtime'
 fn remove_random_string(input: &str) -> String {
     let re = regex::Regex::new(r"[a-zA-Z]{10}").unwrap();
     re.replace_all(input, "").into_owned()

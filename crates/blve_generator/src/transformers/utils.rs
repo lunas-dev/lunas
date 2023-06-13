@@ -407,9 +407,15 @@ fn append_v_to_vars(input: &str, variables: &[String]) -> (String, Vec<String>) 
     let output = parts.join(" "); // Ensure that there's space between parts
     (output, depending_vars)
 }
-// FIXME:escapeTextは各バインディングに1つだけでいい
+
+// FIXME:カッコが複数でも、escapeTextは各バインディングに1つだけでいい
+// 具体例:
 // 現在:${escapeHtml(count.v+count.v)} count ${escapeHtml(count)} ${escapeHtml( count + count )}
 // 将来的:${escapeHtml(`${count.v+count.v} count ${count} ${ count + count }`)}
+
+// カッコが1つだけの場合、その部分のみをエスケープする
+// Give: <div>    ${count} </div>
+// Want: <div>    ${escapeHtml(count)} </div>
 fn replace_text_with_reactive_value(code: &mut String, variables: &Vec<String>) -> Vec<String> {
     let start_tag = "${";
     let end_tag = "}";
