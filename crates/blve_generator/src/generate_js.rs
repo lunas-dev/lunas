@@ -3,32 +3,13 @@ use std::vec;
 use blve_parser::DetailedBlock;
 
 use crate::{
-    structs::{ActionAndTarget, ElmAndReactiveInfo, NeededIdName, VariableNameAndAssignedNumber},
-    transformers::utils::{
-        add_strings_to_script, check_html_elms, find_variable_declarations, search_json,
-    },
+    structs::{ transform_targets::ElmAndReactiveInfo, transform_info::{NeededIdName, ActionAndTarget, VariableNameAndAssignedNumber}},
+    transformers::{js_utils::analyze_js, html_utils::check_html_elms},
 };
 
 pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> (String, Option<String>) {
     // Analyze JavaScript
-    let (variables, variable_names, js_output) =
-        if let Some(js_block) = &blocks.detailed_language_blocks.js {
-            let mut positions = vec![];
-            let (variables, str_positions) = find_variable_declarations(&js_block.ast);
-            for r in str_positions {
-                positions.push(r);
-            }
-            let variable_names = variables.iter().map(|v| v.name.clone()).collect();
-            let result = search_json(&js_block.ast, &variable_names, None);
-            for r in result {
-                positions.push(r);
-            }
-            positions.sort_by(|a, b| a.position.cmp(&b.position));
-            let output = add_strings_to_script(positions, &js_block.raw);
-            (variables, variable_names, output)
-        } else {
-            (vec![], vec![], "".to_string())
-        };
+    let (variables, variable_names, js_output) = analyze_js(blocks);
 
     // Clone HTML as mutable reference
     let mut html = blocks.detailed_language_blocks.dom.clone();
