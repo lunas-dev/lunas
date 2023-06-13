@@ -3,9 +3,7 @@ use std::vec;
 use blve_parser::DetailedBlock;
 
 use crate::{
-    structs::{
-        ActionAndTarget, ElmAndVariableRelation, NeededIdName, VariableNameAndAssignedNumber,
-    },
+    structs::{ActionAndTarget, ElmAndReactiveInfo, NeededIdName, VariableNameAndAssignedNumber},
     transformers::utils::{
         add_strings_to_script, check_html_elms, find_variable_declarations, search_json,
     },
@@ -73,7 +71,7 @@ fn gen_full_code(codes: Vec<String>) -> String {
         .join("\n");
     format!(
         r#"
-import {{ reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText }} from 'blve/dist/runtime'
+import {{ reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText,replaceAttr }} from 'blve/dist/runtime'
 export default function(elm) {{
     const refs = [0, false, null];
 {code}
@@ -143,32 +141,61 @@ fn create_event_listener(actions_and_targets: Vec<ActionAndTarget>) -> Vec<Strin
 }
 
 fn gen_update_func_statement(
-    elm_and_variable_relations: Vec<ElmAndVariableRelation>,
+    elm_and_variable_relations: Vec<ElmAndReactiveInfo>,
     variable_name_and_assigned_numbers: Vec<VariableNameAndAssignedNumber>,
 ) -> String {
     let mut replace_statements = vec![];
     for elm_and_variable_relation in elm_and_variable_relations {
-        let depending_variables = elm_and_variable_relation.variable_names;
-        let target_id = elm_and_variable_relation.elm_id;
+        /* ElmAndVariableRelation(ElmAndVariableRelation),
+            ElmAndReactiveAttributeRelation(ElmAndReactiveAttributeRelation),
+        } */
+        match elm_and_variable_relation {
+            ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(a) => {
+                for c in a.reactive_attr {
+                    let dep_vars_assined_numbers = variable_name_and_assigned_numbers
+                        .iter()
+                        .filter(|v| {
+                            c.variable_names
+                                .iter()
+                                .map(|d| *d == v.name)
+                                .collect::<Vec<bool>>()
+                                .contains(&true)
+                        })
+                        .map(|v| v.assignment)
+                        .collect::<Vec<u32>>();
 
-        // variable_name_and_assigned_numbers.filter((v)=>v.name in elm_and_variable_relation).map(|v| v.name.clone())
-        let dep_vars_assined_numbers = variable_name_and_assigned_numbers
-            .iter()
-            .filter(|v| {
-                depending_variables
+                    replace_statements.push(format!(
+                        "refs[0]  & {:?} && replaceAttr(\"{}\", {}, {}Ref);",
+                        get_combined_binary_number(dep_vars_assined_numbers),
+                        c.attribute_key,
+                        c.content_of_attr,
+                        a.elm_id
+                    ));
+                }
+            }
+            ElmAndReactiveInfo::ElmAndVariableRelation(elm_and_variable_relation) => {
+                let depending_variables = elm_and_variable_relation.variable_names;
+                let target_id = elm_and_variable_relation.elm_id;
+
+                let dep_vars_assined_numbers = variable_name_and_assigned_numbers
                     .iter()
-                    .map(|d| *d == v.name)
-                    .collect::<Vec<bool>>()
-                    .contains(&true)
-            })
-            .map(|v| v.assignment)
-            .collect::<Vec<u32>>();
+                    .filter(|v| {
+                        depending_variables
+                            .iter()
+                            .map(|d| *d == v.name)
+                            .collect::<Vec<bool>>()
+                            .contains(&true)
+                    })
+                    .map(|v| v.assignment)
+                    .collect::<Vec<u32>>();
 
-        let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
-        replace_statements.push(format!(
-            "refs[0] & {:?} && replaceText(`{}`, {}Ref);",
-            combined_number, elm_and_variable_relation.content_of_element, target_id
-        ));
+                let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
+                replace_statements.push(format!(
+                    "refs[0] & {:?} && replaceText(`{}`, {}Ref);",
+                    combined_number, elm_and_variable_relation.content_of_element, target_id
+                ));
+            }
+        }
     }
 
     let code = replace_statements

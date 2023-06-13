@@ -51,6 +51,14 @@ export function replaceText(content: any, elm: HTMLElement) {
 	elm.innerHTML = escapeHtml(content);
 }
 
+export function replaceAttr(key:any,content:any,elm:HTMLElement){
+	if(content===undefined && elm.hasAttribute(key)){
+		elm.removeAttribute(key);
+		return;
+	}
+	elm.setAttribute(key,content);
+}
+
 export function reactiveValue<T>(
 	v: T,
 	symbolIndex: number,

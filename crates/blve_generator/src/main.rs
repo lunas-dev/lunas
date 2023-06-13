@@ -7,35 +7,47 @@ use blve_parser::parse_blve_file;
 fn main() {
     // "Hello, world!".to_string()
 
+//     let a = r#"
+// html:
+//   <h1 id='abc'>Hello Blve!</h1>
+//   <div >${count}</div>
+//   <button @click="increment">+1</button>
+//   <button @click="clear">${interval==null?"start":"clear"}</button>
+// script:
+//   let count = 0
+//   function increment(){
+//     count++
+//     console.log(count)
+//   }
+//   function clear(){
+//     if(interval){
+//       clearInterval(interval)
+//       interval = null
+//     }else{
+//       interval = setInterval(increment, 2000)
+//     }
+//   }
+//   let interval = setInterval(increment, 2000)
+// style:
+//   h1 {
+//     color: blue;
+//   }
+//   * {
+//     font-family: 'Noto Sans', sans-serif;
+//   }
+
+// "#;
     let a = r#"
 html:
   <h1 id='abc'>Hello Blve!</h1>
-  <div >${count}</div>
-  <button @click="increment">+1</button>
-  <button @click="clear">${interval==null?"start":"clear"}</button>
+  <input :value="count"></input>
+  <div>${count}</div>
 script:
   let count = 0
   function increment(){
     count++
     console.log(count)
   }
-  function clear(){
-    if(interval){
-      clearInterval(interval)
-      interval = null
-    }else{
-      interval = setInterval(increment, 2000)
-    }
-  }
-  let interval = setInterval(increment, 2000)
-style:
-  h1 {
-    color: blue;
-  }
-  * {
-    font-family: 'Noto Sans', sans-serif;
-  }
-
 "#;
 
     let b = parse_blve_file(a).unwrap();
