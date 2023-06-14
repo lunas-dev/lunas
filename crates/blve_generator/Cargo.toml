@@ -2,6 +2,7 @@
 name = "blve_generator"
 version = "0.1.0"
 edition = "2021"
+default-run = "default"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -19,3 +20,7 @@ regex = "1.8.4"
 [[bin]]
 name = "gen-test"
 path = "tests/gen_test.rs"
+
+[[bin]]
+name = "default"
+path = "src/main.rs"
