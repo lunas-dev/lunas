@@ -9,6 +9,7 @@ use blve_generator::blve_compile_from_block;
 
 #[test]
 fn test_case_files() {
+    std::env::set_var("BLVE_TEST", "true");
     let test_dir = "tests/cases";
     let input_extension = "in";
     let output_extension = "out";
@@ -37,19 +38,12 @@ fn test_case_files() {
                 let compiled_input = blve_compile_from_block(&b).unwrap().0;
 
                 assert_eq!(
-                    remove_random_string(test_input.as_str()),
-                    remove_random_string(compiled_input.as_str()),
+                    test_input.as_str(),
+                    compiled_input.as_str(),
                     "Test case {:?} failed",
                     file_path
                 );
             }
         }
     }
-}
-
-// FIXME: 本来テストに関係のあるコードまで消してしまう
-// 例 import { lue,,ner,unc,,t } from 'blve/dist/runtime'
-fn remove_random_string(input: &str) -> String {
-    let re = regex::Regex::new(r"[a-zA-Z]{10}").unwrap();
-    re.replace_all(input, "").into_owned()
 }

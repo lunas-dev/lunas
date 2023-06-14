@@ -13,18 +13,18 @@ export default function(elm) {
       kalor.v = 'blue'
     }
 
-    elm.innerHTML = `<span id="ngwqdvkmxt" style="${`color:${kalor.v}`}">I am a color</span><button id="lfjpdltftw">黄色</button><button id="duganohzwb">赤色</button><button id="nxrzlscdtr">青色</button>`;
+    elm.innerHTML = `<span id="test" style="${`color:${kalor.v}`}">I am a color</span><button id="test">黄色</button><button id="test">赤色</button><button id="test">青色</button>`;
 
-    const [ngwqdvkmxtRef,lfjpdltftwRef,duganohzwbRef,nxrzlscdtrRef] = getElmRefs(["ngwqdvkmxt","lfjpdltftw","duganohzwb","nxrzlscdtr"], 15);
+    const [testRef,testRef,testRef,testRef] = getElmRefs(["test","test","test","test"], 15);
 
-    addEvListener(lfjpdltftwRef, "click", yellow);
+    addEvListener(testRef, "click", yellow);
 
-    addEvListener(duganohzwbRef, "click", red);
+    addEvListener(testRef, "click", red);
 
-    addEvListener(nxrzlscdtrRef, "click", blve);
+    addEvListener(testRef, "click", blve);
 
     refs[2] = genUpdateFunc(() => {
-        refs[0]  & 1 && replaceAttr("style", `color:${kalor.v}`, ngwqdvkmxtRef);
+        refs[0]  & 1 && replaceAttr("style", `color:${kalor.v}`, testRef);
     
     });
 

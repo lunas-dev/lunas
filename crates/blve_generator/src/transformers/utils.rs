@@ -1,3 +1,5 @@
+use std::env;
+
 use crate::structs::transform_info::AddStringToPosition;
 
 pub fn add_strings_to_script(
@@ -18,9 +20,20 @@ pub fn add_strings_to_script(
 }
 
 pub fn gen_nanoid() -> String {
-    let alphabet: [char; 26] = [
-        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r',
-        's', 't', 'v', 'u', 'w', 'x', 'y', 'z',
-    ];
-    nanoid::nanoid!(10, &alphabet)
+    if is_testgen() {
+        "test".to_string()
+    } else {
+        let alphabet: [char; 26] = [
+            'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q',
+            'r', 's', 't', 'v', 'u', 'w', 'x', 'y', 'z',
+        ];
+        nanoid::nanoid!(10, &alphabet)
+    }
+}
+
+fn is_testgen() -> bool {
+    match env::var("BLVE_TEST") {
+        Ok(_) => true,
+        Err(_) => false,
+    }
 }
