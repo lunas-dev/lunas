@@ -1,0 +1,31 @@
+
+import { reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText,replaceAttr } from 'blve/dist/runtime'
+export default function(elm) {
+    const refs = [0, false, null];
+    let kalor = reactiveValue('red', 1, refs)
+    function yellow(){
+      kalor.v = 'yellow'
+    }
+    function red(){
+      kalor.v = 'red'
+    }
+    function blve(){
+      kalor.v = 'blue'
+    }
+
+    elm.innerHTML = `<span id="ngwqdvkmxt" style="${`color:${kalor.v}`}">I am a color</span><button id="lfjpdltftw">黄色</button><button id="duganohzwb">赤色</button><button id="nxrzlscdtr">青色</button>`;
+
+    const [ngwqdvkmxtRef,lfjpdltftwRef,duganohzwbRef,nxrzlscdtrRef] = getElmRefs(["ngwqdvkmxt","lfjpdltftw","duganohzwb","nxrzlscdtr"], 15);
+
+    addEvListener(lfjpdltftwRef, "click", yellow);
+
+    addEvListener(duganohzwbRef, "click", red);
+
+    addEvListener(nxrzlscdtrRef, "click", blve);
+
+    refs[2] = genUpdateFunc(() => {
+        refs[0]  & 1 && replaceAttr("style", `color:${kalor.v}`, ngwqdvkmxtRef);
+    
+    });
+
+}

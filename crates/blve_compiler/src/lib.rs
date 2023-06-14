@@ -25,11 +25,11 @@ impl BlveCompilerOutput {
 
 #[wasm_bindgen]
 pub fn compile(blve_code: String) -> Result<BlveCompilerOutput, String> {
-    let mut blocks = match parse_blve_file(&blve_code) {
+    let blocks = match parse_blve_file(&blve_code) {
         Ok(r) => Ok(r),
         Err(e) => Err(e.to_string()),
     }?;
-    let code = blve_compile_from_block(&mut blocks);
+    let code = blve_compile_from_block(&blocks)?;
     Ok(BlveCompilerOutput {
         js: code.0,
         css: code.1,
