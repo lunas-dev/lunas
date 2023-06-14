@@ -1,5 +1,5 @@
 
-import { reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText } from 'blve/dist/runtime'
+import { reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText,replaceAttr } from 'blve/dist/runtime'
 export default function(elm) {
     const refs = [0, false, null];
     let count = reactiveValue(0, 1, refs)
