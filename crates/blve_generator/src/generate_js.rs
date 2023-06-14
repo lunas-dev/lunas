@@ -130,9 +130,6 @@ fn gen_update_func_statement(
 ) -> String {
     let mut replace_statements = vec![];
     for elm_and_variable_relation in elm_and_variable_relations {
-        /* ElmAndVariableRelation(ElmAndVariableRelation),
-            ElmAndReactiveAttributeRelation(ElmAndReactiveAttributeRelation),
-        } */
         match elm_and_variable_relation {
             ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(a) => {
                 for c in a.reactive_attr {
