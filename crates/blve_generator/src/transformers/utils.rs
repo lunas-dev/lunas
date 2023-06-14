@@ -37,3 +37,31 @@ fn is_testgen() -> bool {
         Err(_) => false,
     }
 }
+
+// TODO:SWCでパースする
+pub fn append_v_to_vars(input: &str, variables: &[String]) -> (String, Vec<String>) {
+    let mut depending_vars = Vec::new();
+    let operators = [
+        "+", "-", "*", "/", "%", "==", "!=", "<", ">", "<=", ">=", "?", ":", "&&", "||", "${", "}",
+    ];
+    let mut spaced_input = input.to_string();
+    for op in &operators {
+        spaced_input = spaced_input.replace(op, &format!(" {} ", op));
+    }
+
+    let parts: Vec<String> = spaced_input
+        .split_whitespace()
+        .map(|part| {
+            let trimmed = part.trim();
+            if variables.contains(&trimmed.to_string()) {
+                depending_vars.push(trimmed.to_string());
+                format!("{}.v", trimmed)
+            } else {
+                trimmed.to_string()
+            }
+        })
+        .collect();
+
+    let output = parts.join(" "); // Ensure that there's space between parts
+    (output, depending_vars)
+}

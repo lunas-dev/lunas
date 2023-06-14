@@ -9,7 +9,7 @@ use crate::structs::{
 };
 use blve_html_parser::{Element, Node};
 
-use super::utils::gen_nanoid;
+use super::utils::{append_v_to_vars, gen_nanoid};
 
 // TODO:dep_vars の使い方を再考する
 // RCを使用して、子から親のmutableな変数を参照できるようにする可能性も視野に入れる
@@ -71,7 +71,8 @@ pub fn check_html_elms(
 
                         let mut raw_attr_value = raw_attr_value.unwrap();
 
-                        let used_vars = escape_raw_attr_value(&mut raw_attr_value, varibale_names);
+                        let (raw_attr_value, used_vars) =
+                            append_v_to_vars(&mut raw_attr_value, varibale_names);
 
                         element.attributes.remove(&key);
                         element.attributes.insert(
@@ -123,17 +124,6 @@ pub fn check_html_elms(
         };
     }
     Ok(dep_vars)
-}
-
-fn escape_raw_attr_value(raw_attr_value: &mut String, varibale_names: &Vec<String>) -> Vec<String> {
-    let mut dep_vars = vec![];
-    for variable_name in varibale_names {
-        if raw_attr_value.contains(variable_name) {
-            dep_vars.push(variable_name.to_string());
-            *raw_attr_value = raw_attr_value.replace(variable_name, &format!("{}.v", variable_name))
-        }
-    }
-    dep_vars
 }
 
 fn set_id_for_needed_elm(element: &mut Element, needed_ids: &mut Vec<NeededIdName>) -> String {
@@ -199,34 +189,6 @@ fn replace_text_with_reactive_value(code: &mut String, variables: &Vec<String>) 
     new_code.push_str(&code[last_end..]);
     *code = new_code;
     depending_vars
-}
-
-// TODO:SWCでパースする
-fn append_v_to_vars(input: &str, variables: &[String]) -> (String, Vec<String>) {
-    let mut depending_vars = Vec::new();
-    let operators = [
-        "+", "-", "*", "/", "%", "==", "!=", "<", ">", "<=", ">=", "?", ":",
-    ];
-    let mut spaced_input = input.to_string();
-    for op in &operators {
-        spaced_input = spaced_input.replace(op, &format!(" {} ", op));
-    }
-
-    let parts: Vec<String> = spaced_input
-        .split_whitespace()
-        .map(|part| {
-            let trimmed = part.trim();
-            if variables.contains(&trimmed.to_string()) {
-                depending_vars.push(trimmed.to_string());
-                format!("{}.v", trimmed)
-            } else {
-                trimmed.to_string()
-            }
-        })
-        .collect();
-
-    let output = parts.join(" "); // Ensure that there's space between parts
-    (output, depending_vars)
 }
 
 // test

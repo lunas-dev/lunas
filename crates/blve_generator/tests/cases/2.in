@@ -1,16 +1,16 @@
 html:
-  <span :style="`color:${kalor}`">I am a color</span>
+  <span :style="`color:${color}`">I am a color</span>
   <button @click="yellow">黄色</button>
   <button @click="red">赤色</button>
   <button @click="blve">青色</button>
 script:
-  let kalor = 'red'
+  let color = 'red'
   function yellow(){
-    kalor = 'yellow'
+    color = 'yellow'
   }
   function red(){
-    kalor = 'red'
+    color = 'red'
   }
   function blve(){
-    kalor = 'blue'
+    color = 'blue'
   }
