@@ -3,11 +3,14 @@ use std::vec;
 use blve_parser::DetailedBlock;
 
 use crate::{
-    structs::{ transform_targets::ElmAndReactiveInfo, transform_info::{NeededIdName, ActionAndTarget, VariableNameAndAssignedNumber}},
-    transformers::{js_utils::analyze_js, html_utils::check_html_elms},
+    structs::{
+        transform_info::{ActionAndTarget, NeededIdName, VariableNameAndAssignedNumber},
+        transform_targets::ElmAndReactiveInfo,
+    },
+    transformers::{html_utils::check_html_elms, js_utils::analyze_js},
 };
 
-pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> (String, Option<String>) {
+pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> Result<(String, Option<String>), String> {
     // Analyze JavaScript
     let (variables, variable_names, js_output) = analyze_js(blocks);
 
@@ -25,7 +28,7 @@ pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> (String, Option<String
         &mut needed_id,
         &mut elm_and_var_relation,
         &mut action_and_target,
-    );
+    )?;
 
     let html_str = html.to_string();
 
@@ -40,7 +43,7 @@ pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> (String, Option<String
     let full_code = gen_full_code(codes);
     let css_code = blocks.detailed_language_blocks.css.clone();
 
-    (full_code, css_code)
+    Ok((full_code, css_code))
 }
 
 fn gen_full_code(codes: Vec<String>) -> String {

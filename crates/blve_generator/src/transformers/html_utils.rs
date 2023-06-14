@@ -1,6 +1,12 @@
 use std::vec;
 
-use crate::structs::{transform_targets::{ElmAndReactiveInfo, ReactiveAttr, ElmAndReactiveAttributeRelation, ElmAndVariableContentRelation}, transform_info::{NeededIdName, ActionAndTarget}};
+use crate::structs::{
+    transform_info::{ActionAndTarget, NeededIdName},
+    transform_targets::{
+        ElmAndReactiveAttributeRelation, ElmAndReactiveInfo, ElmAndVariableContentRelation,
+        ReactiveAttr,
+    },
+};
 use blve_html_parser::{Element, Node};
 
 use super::utils::gen_nanoid;
@@ -13,7 +19,7 @@ pub fn check_html_elms(
     needed_ids: &mut Vec<NeededIdName>,
     elm_and_var_relation: &mut Vec<ElmAndReactiveInfo>,
     actions_and_targets: &mut Vec<ActionAndTarget>,
-) -> Vec<String> {
+) -> Result<Vec<String>, String> {
     let node_len = *(&nodes.len().clone()) as u32;
     let mut dep_vars: Vec<String> = vec![];
     for node in nodes {
@@ -34,113 +40,52 @@ pub fn check_html_elms(
                         element.attributes.remove(&key);
                     } else if key.starts_with(":") {
                         let id: String = set_id_for_needed_elm(element, needed_ids);
-                        let attr_ = &key[1..];
+                        let raw_attr_name = &key[1..];
+                        let raw_attr_value = action_value.clone();
+
+                        let reactive_attr_info =
+                            find_reactive_attr_from_id(&id, elm_and_var_relation);
+
                         // if elm_and_var_relation includes elm_id
-                        if let Some(elm_and_var_relation) = elm_and_var_relation
-                            .iter_mut()
-                            .filter_map(|elm_and_var_relation| {
-                                if let ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(
-                                    elm_and_var_relation,
-                                ) = elm_and_var_relation
-                                {
-                                    Some(elm_and_var_relation)
-                                } else {
-                                    None
-                                }
-                            })
-                            .find(|elm_and_var_relation| elm_and_var_relation.elm_id == id)
-                        {
-                            // if elm_and_var_relation includes reactive_attr
-                            // if !elm_and_var_relation
-                            //     .reactive_attr
-                            //     .iter_mut()
-                            //     .find(|reactive_attr| reactive_attr.attribute_key == attr_)
-                            //     .is_some()
-                            // {
-                            if let Some(action_value) = action_value {
-                                let mut variables = vec![];
-                                for variable_name in varibale_names {
-                                    if action_value.contains(variable_name) {
-                                        variables.push(variable_name.to_string());
-                                        // replace variable_name with variable_name.v
-                                        let mut new_action_value = action_value.clone();
-                                        new_action_value = new_action_value.replace(
-                                            variable_name,
-                                            &format!("{}.v", variable_name),
-                                        );
-                                        element.attributes.remove(&key);
-                                        element.attributes.insert(
-                                            attr_.to_string(),
-                                            Some(format!("${{{}}}", new_action_value)),
-                                        );
-                                    }
-                                }
-                                elm_and_var_relation.reactive_attr.push(ReactiveAttr {
-                                    attribute_key: attr_.to_string(),
-                                    content_of_attr: element
-                                        .attributes
-                                        .get(attr_)
-                                        .unwrap()
-                                        .clone()
-                                        .unwrap(),
-                                    variable_names: variables,
-                                });
-                                element.attributes.remove(&key);
-                                element.attributes.insert(
-                                    attr_.to_string(),
-                                    Some(format!(
-                                        "${{{}}}",
-                                        element.attributes.get(attr_).unwrap().clone().unwrap()
-                                    )),
-                                );
-                            }
-                            // }
-                        } else {
-                            let mut variables = vec![];
-                            for variable_name in varibale_names {
-                                if let Some(action_value) = action_value.clone() {
-                                    if action_value.contains(variable_name) {
-                                        variables.push(variable_name.to_string());
-                                        let mut new_action_value = action_value.clone();
-                                        new_action_value = new_action_value.replace(
-                                            variable_name,
-                                            &format!("{}.v", variable_name),
-                                        );
-                                        element.attributes.remove(&key);
-                                        element
-                                            .attributes
-                                            .insert(attr_.to_string(), Some(new_action_value));
-                                    }
-                                }
-                            }
-                            if let Some(_) = action_value.clone() {
+                        // 既に同じ要素への属性へのバインディングが存在する場合
+
+                        let reactive_attr_info = match reactive_attr_info {
+                            Some(rel) => rel,
+                            None => {
+                                let rel2 = ElmAndReactiveAttributeRelation {
+                                    elm_id: id.clone(),
+                                    reactive_attr: vec![],
+                                };
                                 elm_and_var_relation.push(
-                                    ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(
-                                        ElmAndReactiveAttributeRelation {
-                                            elm_id: id,
-                                            reactive_attr: vec![ReactiveAttr {
-                                                attribute_key: attr_.to_string(),
-                                                content_of_attr: element
-                                                    .attributes
-                                                    .get(attr_)
-                                                    .unwrap()
-                                                    .clone()
-                                                    .unwrap(),
-                                                variable_names: variables,
-                                            }],
-                                        },
-                                    ),
+                                    ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(rel2),
                                 );
+                                find_reactive_attr_from_id(&id, elm_and_var_relation).unwrap()
                             }
-                            element.attributes.remove(&key);
-                            element.attributes.insert(
-                                attr_.to_string(),
-                                Some(format!(
-                                    "${{{}}}",
-                                    element.attributes.get(attr_).unwrap().clone().unwrap()
-                                )),
-                            );
+                        };
+
+                        // Check if the value is null
+                        // TODO:要素のIndexを返すようにする
+                        if raw_attr_value.is_none() {
+                            Err(format!("value of attribute :{} is null", raw_attr_name))?;
                         }
+
+                        let mut raw_attr_value = raw_attr_value.unwrap();
+
+                        let used_vars = escape_raw_attr_value(&mut raw_attr_value, varibale_names);
+
+                        element.attributes.remove(&key);
+                        element.attributes.insert(
+                            raw_attr_name.to_string(),
+                            Some(format!("${{{}}}", raw_attr_value)),
+                        );
+
+                        let k = ReactiveAttr {
+                            attribute_key: raw_attr_name.to_string(),
+                            content_of_attr: raw_attr_value,
+                            variable_names: used_vars,
+                        };
+
+                        reactive_attr_info.reactive_attr.push(k);
                     }
                 }
                 let var_deps = check_html_elms(
@@ -149,7 +94,7 @@ pub fn check_html_elms(
                     needed_ids,
                     elm_and_var_relation,
                     actions_and_targets,
-                );
+                )?;
 
                 if var_deps.len() > 0 {
                     let id: String = set_id_for_needed_elm(element, needed_ids);
@@ -176,6 +121,17 @@ pub fn check_html_elms(
             }
             _ => vec![],
         };
+    }
+    Ok(dep_vars)
+}
+
+fn escape_raw_attr_value(raw_attr_value: &mut String, varibale_names: &Vec<String>) -> Vec<String> {
+    let mut dep_vars = vec![];
+    for variable_name in varibale_names {
+        if raw_attr_value.contains(variable_name) {
+            dep_vars.push(variable_name.to_string());
+            *raw_attr_value = raw_attr_value.replace(variable_name, &format!("{}.v", variable_name))
+        }
     }
     dep_vars
 }
@@ -314,4 +270,22 @@ mod tests {
 
 fn escape_html(s: &str) -> String {
     format!("escapeHtml({})", s)
+}
+
+fn find_reactive_attr_from_id<'a>(
+    id: &str,
+    reactive_attrs: &'a mut Vec<ElmAndReactiveInfo>,
+) -> Option<&'a mut ElmAndReactiveAttributeRelation> {
+    reactive_attrs
+        .iter_mut()
+        .filter_map(|elm_and_var_relation| {
+            if let ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(elm_and_var_relation) =
+                elm_and_var_relation
+            {
+                Some(elm_and_var_relation)
+            } else {
+                None
+            }
+        })
+        .find(|x| x.elm_id == id)
 }
