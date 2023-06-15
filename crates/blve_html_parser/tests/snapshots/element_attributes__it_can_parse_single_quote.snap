@@ -1,0 +1,14 @@
+---
+source: tests/element_attributes.rs
+expression: dom
+---
+{
+  "treeType": "documentFragment",
+  "children": [
+    {
+      "id": "one",
+      "name": "div",
+      "variant": "normal"
+    }
+  ]
+}

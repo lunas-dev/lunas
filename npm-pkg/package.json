@@ -1,6 +1,6 @@
 {
   "name": "blve",
-  "version": "0.0.1-beta.1",
+  "version": "0.0.1-beta.2",
   "description": "Blve - Ultrafast and Sophisticated Web Frontend Framework",
   "main": "dist/index.js",
   "scripts": {
@@ -17,5 +17,8 @@
     "url": "https://github.com/blvedev/blve/issues"
   },
   "homepage": "https://github.com/blvedev/blve#readme",
-  "private": false
+  "private": false,
+  "devDependencies": {
+    "rome": "^12.1.3"
+  }
 }

@@ -1,7 +1,6 @@
 export type SymbolRefInfo = [number, boolean, (() => void) | null];
 
 export class valueObj<T> {
-	// constructor(public name: string, protected age: number) {}
 	constructor(
 		private _v: T,
 		private symbolIndex: number,
@@ -49,6 +48,14 @@ export function escapeHtml(text: any): string {
 
 export function replaceText(content: any, elm: HTMLElement) {
 	elm.innerHTML = escapeHtml(content);
+}
+
+export function replaceAttr(key: string, content: any, elm: HTMLElement) {
+	if (content === undefined && elm.hasAttribute(key)) {
+		elm.removeAttribute(key);
+		return;
+	}
+	(elm as any)[key] = String(content);
 }
 
 export function reactiveValue<T>(

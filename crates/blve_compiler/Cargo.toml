@@ -6,9 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-crate-type=["cdylib"]
+crate-type = ["cdylib"]
 
 [dependencies]
-blve_parser = { version = "0.1.0", path = "../blve_parser" }
-blve_generator = { version = "0.1.0", path = "../blve_generator" }
+blve_parser = { path = "../blve_parser" }
+blve_generator = { path = "../blve_generator" }
 wasm-bindgen = "0.2.86"

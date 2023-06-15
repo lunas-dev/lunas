@@ -1,0 +1,13 @@
+---
+source: tests/element.rs
+expression: dom
+---
+{
+  "treeType": "document",
+  "children": [
+    {
+      "name": "Html",
+      "variant": "normal"
+    }
+  ]
+}

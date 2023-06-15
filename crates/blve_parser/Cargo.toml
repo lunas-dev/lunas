@@ -13,3 +13,4 @@ serde_json = "1.0.96"
 swc_common = { version = "0.31.12", features = ["tty-emitter"] }
 swc_ecma_ast = { version = "0.104.5", features = ["serde-impl"] }
 swc_ecma_parser = "0.134.12"
+blve_html_parser = { path = "../blve_html_parser" }

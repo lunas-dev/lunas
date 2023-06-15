@@ -4,53 +4,46 @@ use blve_parser::DetailedBlock;
 
 use crate::{
     structs::{
-        ActionAndTarget, ElmAndVariableRelation, NeededIdName, VariableNameAndAssignedNumber,
+        transform_info::{ActionAndTarget, NeededIdName, VariableNameAndAssignedNumber},
+        transform_targets::ElmAndReactiveInfo,
     },
-    transformers::utils::{
-        add_strings_to_script, check_html_elms, find_variable_declarations, search_json,
-    },
+    transformers::{html_utils::check_html_elms, js_utils::analyze_js},
 };
 
-// TODO: bをimmutableにする&リネームする
-pub fn generate_js_from_blocks(b: &mut DetailedBlock) -> (String, Option<String>) {
-    let (variables, variable_names, js_output) =
-        if let Some(js_block) = &b.detailed_language_blocks.js {
-            let mut positions = vec![];
-            let (variables, str_positions) = find_variable_declarations(&js_block.ast);
-            for r in str_positions {
-                positions.push(r);
-            }
-            let variable_names = variables.iter().map(|v| v.name.clone()).collect();
-            let result = search_json(&js_block.ast, &variable_names, None);
-            for r in result {
-                positions.push(r);
-            }
-            positions.sort_by(|a, b| a.position.cmp(&b.position));
-            let output = add_strings_to_script(positions, &js_block.raw);
-            (variables, variable_names, output)
-        } else {
-            (vec![], vec![], "".to_string())
-        };
+pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> Result<(String, Option<String>), String> {
+    // Analyze JavaScript
+    let (variables, variable_names, js_output) = analyze_js(blocks);
 
-    let (action_and_target, needed_id, _, elm_and_var_rel) = check_html_elms(
+    // Clone HTML as mutable reference
+    let mut html = blocks.detailed_language_blocks.dom.clone();
+    let mut needed_id = vec![];
+
+    let mut elm_and_var_relation = vec![];
+    let mut action_and_target = vec![];
+
+    // Analyze HTML
+    check_html_elms(
         &variable_names,
-        &mut b.detailed_language_blocks.dom.children,
-    );
+        &mut html.children,
+        &mut needed_id,
+        &mut elm_and_var_relation,
+        &mut action_and_target,
+    )?;
 
-    let k = b.detailed_language_blocks.dom.to_string();
+    let html_str = html.to_string();
 
-    let html_insert = format!("elm.innerHTML = `{}`;", k);
-    // let imports = "import { reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText } from '../a.js'";
+    // Generate JavaScript
+    let html_insert = format!("elm.innerHTML = `{}`;", html_str);
     let ref_getter_expression = gen_ref_getter_from_needed_ids(needed_id);
     let event_listener_codes = create_event_listener(action_and_target);
     let mut codes = vec![js_output, html_insert, ref_getter_expression];
     codes.extend(event_listener_codes);
-    let update_func_code = gen_update_func_statement(elm_and_var_rel, variables);
+    let update_func_code = gen_update_func_statement(elm_and_var_relation, variables);
     codes.push(update_func_code);
     let full_code = gen_full_code(codes);
-    let css_code = b.detailed_language_blocks.css.clone();
+    let css_code = blocks.detailed_language_blocks.css.clone();
 
-    (full_code, css_code)
+    Ok((full_code, css_code))
 }
 
 fn gen_full_code(codes: Vec<String>) -> String {
@@ -62,7 +55,7 @@ fn gen_full_code(codes: Vec<String>) -> String {
         .join("\n");
     format!(
         r#"
-import {{ reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText }} from 'blve/dist/runtime'
+import {{ reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText,replaceAttr }} from 'blve/dist/runtime'
 export default function(elm) {{
     const refs = [0, false, null];
 {code}
@@ -132,32 +125,58 @@ fn create_event_listener(actions_and_targets: Vec<ActionAndTarget>) -> Vec<Strin
 }
 
 fn gen_update_func_statement(
-    elm_and_variable_relations: Vec<ElmAndVariableRelation>,
+    elm_and_variable_relations: Vec<ElmAndReactiveInfo>,
     variable_name_and_assigned_numbers: Vec<VariableNameAndAssignedNumber>,
 ) -> String {
     let mut replace_statements = vec![];
     for elm_and_variable_relation in elm_and_variable_relations {
-        let depending_variables = elm_and_variable_relation.variable_names;
-        let target_id = elm_and_variable_relation.elm_id;
+        match elm_and_variable_relation {
+            ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(a) => {
+                for c in a.reactive_attr {
+                    let dep_vars_assined_numbers = variable_name_and_assigned_numbers
+                        .iter()
+                        .filter(|v| {
+                            c.variable_names
+                                .iter()
+                                .map(|d| *d == v.name)
+                                .collect::<Vec<bool>>()
+                                .contains(&true)
+                        })
+                        .map(|v| v.assignment)
+                        .collect::<Vec<u32>>();
 
-        // variable_name_and_assigned_numbers.filter((v)=>v.name in elm_and_variable_relation).map(|v| v.name.clone())
-        let dep_vars_assined_numbers = variable_name_and_assigned_numbers
-            .iter()
-            .filter(|v| {
-                depending_variables
+                    replace_statements.push(format!(
+                        "refs[0]  & {:?} && replaceAttr(\"{}\", {}, {}Ref);",
+                        get_combined_binary_number(dep_vars_assined_numbers),
+                        c.attribute_key,
+                        c.content_of_attr,
+                        a.elm_id
+                    ));
+                }
+            }
+            ElmAndReactiveInfo::ElmAndVariableRelation(elm_and_variable_relation) => {
+                let depending_variables = elm_and_variable_relation.variable_names;
+                let target_id = elm_and_variable_relation.elm_id;
+
+                let dep_vars_assined_numbers = variable_name_and_assigned_numbers
                     .iter()
-                    .map(|d| *d == v.name)
-                    .collect::<Vec<bool>>()
-                    .contains(&true)
-            })
-            .map(|v| v.assignment)
-            .collect::<Vec<u32>>();
+                    .filter(|v| {
+                        depending_variables
+                            .iter()
+                            .map(|d| *d == v.name)
+                            .collect::<Vec<bool>>()
+                            .contains(&true)
+                    })
+                    .map(|v| v.assignment)
+                    .collect::<Vec<u32>>();
 
-        let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
-        replace_statements.push(format!(
-            "refs[0] & {:?} && replaceText(`{}`, {}Ref);",
-            combined_number, elm_and_variable_relation.content_of_element, target_id
-        ));
+                let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
+                replace_statements.push(format!(
+                    "refs[0] & {:?} && replaceText(`{}`, {}Ref);",
+                    combined_number, elm_and_variable_relation.content_of_element, target_id
+                ));
+            }
+        }
     }
 
     let code = replace_statements
@@ -176,6 +195,12 @@ fn gen_update_func_statement(
     result
 }
 
+/// Returns a binary number that is the result of ORing all the numbers in the argument.
+/// ```
+/// let numbers = vec![0b0001, 0b0010, 0b0100];
+/// let result = get_combined_binary_number(numbers);
+/// assert_eq!(result, 0b0111);
+/// ```
 fn get_combined_binary_number(numbers: Vec<u32>) -> u32 {
     let mut result = 0;
     for (_, &value) in numbers.iter().enumerate() {

@@ -1,0 +1,19 @@
+---
+source: tests/element.rs
+expression: dom
+---
+{
+  "treeType": "documentFragment",
+  "children": [
+    {
+      "id": "123",
+      "name": "div",
+      "variant": "normal"
+    },
+    {
+      "id": "321",
+      "name": "div",
+      "variant": "normal"
+    }
+  ]
+}

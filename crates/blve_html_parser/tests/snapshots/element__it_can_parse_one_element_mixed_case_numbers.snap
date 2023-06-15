@@ -1,0 +1,13 @@
+---
+source: tests/element.rs
+expression: dom
+---
+{
+  "treeType": "documentFragment",
+  "children": [
+    {
+      "name": "Header1",
+      "variant": "normal"
+    }
+  ]
+}
