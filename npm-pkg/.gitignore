@@ -1,4 +1,3 @@
 src/wasm-compiler/*
 !src/wasm-compiler/.gitkeep
 dist
-node_modules

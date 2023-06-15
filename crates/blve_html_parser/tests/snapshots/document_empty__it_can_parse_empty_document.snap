@@ -1,7 +1,0 @@
----
-source: tests/document_empty.rs
-expression: dom
----
-{
-  "treeType": "empty"
-}

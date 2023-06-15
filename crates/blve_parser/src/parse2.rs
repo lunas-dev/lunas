@@ -8,7 +8,7 @@ use crate::structs::detailed_language_blocks::{DetailedLanguageBlocks, JsBlock};
 use crate::structs::detailed_meta_data::DetailedMetaData;
 use crate::swc_parser::parse_with_swc;
 
-use blve_html_parser::Dom;
+use html_parser::Dom;
 
 pub fn parse2<'a>(input: Vec<ParsedItem>) -> Result<DetailedBlock, &'a str> {
     let variant_a_values: Vec<LanguageBlock> = input
@@ -63,13 +63,20 @@ fn parse_language_blocks<'a>(blks: Vec<LanguageBlock>) -> Result<DetailedLanguag
             let js = hm.get("script");
             let parsed_js = match js {
                 Some(js) => {
-                    // TODO: TS to JS
                     let parsed = parse_with_swc(js.into());
                     let parsed_json = serde_json::to_value(&parsed).unwrap();
                     Some(JsBlock {
                         ast: parsed_json,
                         raw: js.trim().into(),
                     })
+                    // let module = SourceType::ts();
+
+                    // let parsed_js = rome_js_parser::parse(js, module);
+                    // if parsed_js.has_errors() {
+                    //     // let err = parsed_js.errors.
+                    //     return Err("Invalid ts block");
+                    // }
+                    // Some(parsed_js.tree())
                 }
                 None => None,
             };

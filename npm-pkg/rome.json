@@ -1,26 +1,12 @@
 {
-  "$schema": "./node_modules/rome/configuration_schema.json",
-  "formatter": {
-    "enabled": true
-  },
-  "organizeImports": {
-    "enabled": false
-  },
-  "linter": {
-    "enabled": true,
-    "rules": {
-      "recommended": true,
-      "style": {
-        "noNonNullAssertion": "off"
-      },
-      "suspicious": {
-        "noExplicitAny": "off"
-      }
-    }
-  },
-  "javascript": {
-    "formatter": {
-      "semicolons": "always"
-    }
-  }
+	"$schema": "https://docs.rome.tools/schemas/12.1.2/schema.json",
+	"organizeImports": {
+		"enabled": false
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true
+		}
+	}
 }
