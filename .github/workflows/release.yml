@@ -3,7 +3,7 @@ name: Publish npm package
 on:
   pull_request:
     branches:
-      - main
+      - beta
     types: [closed]
   workflow_dispatch:
 
@@ -24,7 +24,13 @@ jobs:
       - name: Install wasm-pack
         run: |
           curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-      - name: Check package.json version format
+      - name: Build
+        run: |
+          make build
+      - name: Publish rust crate
         run: |
           make build
           cd npm-pkg && npm publish --tag beta
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
