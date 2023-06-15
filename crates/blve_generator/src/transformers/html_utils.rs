@@ -39,6 +39,12 @@ pub fn check_html_elms(
                         }
                         element.attributes.remove(&key);
                     } else if key.starts_with(":") {
+                        if key == ":innerHtml" {
+                            Err(format!(":innerHtml is not supported"))?;
+                        } else if key == ":textContent" {
+                            Err(format!(":textContent is not supported"))?;
+                        }
+
                         let id: String = set_id_for_needed_elm(element, needed_ids);
                         let raw_attr_name = &key[1..];
                         let raw_attr_value = action_value.clone();
