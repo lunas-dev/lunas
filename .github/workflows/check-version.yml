@@ -5,8 +5,6 @@ on:
     types: synchronize
     branches:
       - beta
-      # on changes to ./npm-pkg/package.json
-      - 'npm-pkg/**'
 
 jobs:
   check-version:
@@ -32,7 +30,8 @@ jobs:
         if: ${{ failure() }}
         run: |
           NEW_VERSION=$(cat ./npm-pkg/package.json | jq -r '.version')
-          gh pr comment ${{ github.event.pull_request.number }} --body "The version in package.json '$VERSION' does not adhere to the specified format ([digit].[digit].[digit]-beta.[digit]).\nPlease correct it."
+          gh pr comment ${{ github.event.pull_request.number }} --body "The version in package.json '$VERSION' does not adhere to beta version format.
+          Please correct it."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Create PR review on success
@@ -40,6 +39,7 @@ jobs:
         run: |
           CURRENT_VERSION=$(npm show blve@beta version)
           NEW_VERSION=$(cat ./npm-pkg/package.json | jq -r '.version')
-          gh pr comment ${{ github.event.pull_request.number }} --body "The version in package.json '$NEW_VERSION' adheres to the specified format ([digit].[digit].[digit]-beta.[digit]).\nCurrent version in npm is '$CURRENT_VERSION'."
+          gh pr comment ${{ github.event.pull_request.number }} --body "The version in package.json '$NEW_VERSION' adheres to the beta version format.
+          Current version in npm is '$CURRENT_VERSION'."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
