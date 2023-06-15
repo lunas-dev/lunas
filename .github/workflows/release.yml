@@ -1,13 +1,13 @@
-name: Check package.json version
+name: Publish npm package
 
 on:
   pull_request:
     branches:
-      - master
+      - main
     types: [closed]
 
 jobs:
-  check-version:
+  publish-package:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
