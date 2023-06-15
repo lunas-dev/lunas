@@ -30,7 +30,9 @@ jobs:
           fi
       - name: Create PR review on failure
         if: ${{ failure() }}
-        run: gh pr comment ${{ github.event.pull_request.number }} --body "The version in package.json '$VERSION' does not adhere to the specified format ([digit].[digit].[digit]-beta.[digit]).\nPlease correct it."
+        run: |
+          NEW_VERSION=$(cat ./npm-pkg/package.json | jq -r '.version')
+          gh pr comment ${{ github.event.pull_request.number }} --body "The version in package.json '$VERSION' does not adhere to the specified format ([digit].[digit].[digit]-beta.[digit]).\nPlease correct it."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Create PR review on success
