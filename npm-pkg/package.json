@@ -17,5 +17,8 @@
     "url": "https://github.com/blvedev/blve/issues"
   },
   "homepage": "https://github.com/blvedev/blve#readme",
-  "private": false
+  "private": false,
+  "devDependencies": {
+    "rome": "^12.1.3"
+  }
 }

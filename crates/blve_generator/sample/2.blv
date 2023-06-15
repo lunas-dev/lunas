@@ -1,0 +1,10 @@
+html:
+  <h1 id='abc'>Hello Blve!</h1>
+  <input :value="count"></input>
+  <div>${count}</div>
+script:
+  let count = 0
+  function increment(){
+    count++
+    console.log(count)
+  }
