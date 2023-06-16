@@ -30,6 +30,7 @@ jobs:
       - name: Publish rust crate
         run: |
           npm ci
-          cd npm-pkg && npm publish --tag beta
+          npm publish --tag beta
+        working-directory: ./npm-pkg
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
