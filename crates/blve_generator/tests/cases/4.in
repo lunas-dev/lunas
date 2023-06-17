@@ -1,0 +1,9 @@
+html:
+  <input ::value="inputValue" />
+  <div>inputValue: ${ inputValue }</div>
+  <button @click="setFoo">set foo</button>
+script:
+  const inputValue = ""
+  function setFoo() {
+    inputValue = "foo"
+  }

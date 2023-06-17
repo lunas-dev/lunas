@@ -118,7 +118,7 @@ fn create_event_listener(actions_and_targets: Vec<ActionAndTarget>) -> Vec<Strin
     for action_and_target in actions_and_targets {
         result.push(format!(
             "addEvListener({}Ref, \"{}\", {});",
-            action_and_target.target, action_and_target.action_name, action_and_target.action
+            action_and_target.target, action_and_target.action_name, action_and_target.action.to_string()
         ));
     }
     result
