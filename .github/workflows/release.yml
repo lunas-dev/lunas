@@ -31,7 +31,6 @@ jobs:
         run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
       - name: Publish npm package
         run: |
-          npm ci
           npm publish --tag beta
         working-directory: ./npm-pkg
   generate-tag:
