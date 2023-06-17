@@ -1,7 +1,7 @@
 use std::vec;
 
 use crate::structs::{
-    transform_info::{ActionAndTarget, NeededIdName},
+    transform_info::{ActionAndTarget, EventBindingStatement, EventTarget, NeededIdName},
     transform_targets::{
         ElmAndReactiveAttributeRelation, ElmAndReactiveInfo, ElmAndVariableContentRelation,
         ReactiveAttr,
@@ -33,9 +33,38 @@ pub fn check_html_elms(
                         if let Some(value) = &&action_value {
                             actions_and_targets.push(ActionAndTarget {
                                 action_name: action_name.to_string(),
-                                action: value.clone(),
+                                action: EventTarget::new(value.to_string(),varibale_names),
                                 target: id,
                             })
+                        }
+                        element.attributes.remove(&key);
+                    } else if key.starts_with("::") {
+                        let binding_attr = &key[2..];
+                        let id: String = set_id_for_needed_elm(element, needed_ids);
+                        if let Some(value) = &&action_value {
+                            actions_and_targets.push(ActionAndTarget {
+                                action_name: "input".to_string(),
+                                action: EventTarget::EventBindingStatement(EventBindingStatement {
+                                    statement: format!(
+                                        "{}.v = event.target.{}",
+                                        &value, &binding_attr
+                                    ),
+                                    arg: "e".to_string(),
+                                }),
+                                target: id.clone(),
+                            });
+                            elm_and_var_relation.push(
+                                ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(
+                                    ElmAndReactiveAttributeRelation {
+                                        elm_id: id,
+                                        reactive_attr: vec![ReactiveAttr {
+                                            attribute_key: binding_attr.to_string(),
+                                            content_of_attr: format!("{}.v", value),
+                                            variable_names: vec![value.clone()],
+                                        }],
+                                    },
+                                ),
+                            );
                         }
                         element.attributes.remove(&key);
                     } else if key.starts_with(":") {
@@ -53,7 +82,6 @@ pub fn check_html_elms(
                             find_reactive_attr_from_id(&id, elm_and_var_relation);
 
                         // if elm_and_var_relation includes elm_id
-                        // 既に同じ要素への属性へのバインディングが存在する場合
 
                         let reactive_attr_info = match reactive_attr_info {
                             Some(rel) => rel,
