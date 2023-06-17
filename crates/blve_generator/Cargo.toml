@@ -12,6 +12,7 @@ blve_html_parser = { path = "../blve_html_parser" }
 nanoid = "0.4.0"
 getrandom = { version = "0.2.9", features = ["js"] }
 blve_parser = { path = "../blve_parser" }
+rand = "0.8.5"
 
 [dev-dependencies]
 pretty_assertions = "1.3.0"

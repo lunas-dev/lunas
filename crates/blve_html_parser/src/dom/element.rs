@@ -68,7 +68,11 @@ impl ToString for Element {
             string.push_str(&format!(" class=\"{}\"", self.classes.join(" ")));
         }
 
-        for (key, value) in &self.attributes {
+        // self.attributesをソートしてから出力する
+        let mut attributes: Vec<_> = self.attributes.iter().collect();
+        attributes.sort_by(|a, b| a.0.cmp(b.0));
+
+        for (key, value) in attributes {
             if let Some(value) = value {
                 string.push_str(&format!(" {}=\"{}\"", key, value));
             } else {
