@@ -20,10 +20,10 @@ pub struct Element {
 }
 
 impl Element {
-    pub fn new_raw(raw_elm: RawElm) -> Element {
+    pub fn new_from_raw(raw_elm: RawElm, node_vec: Vec<Node>) -> Element {
         Element {
             attributes: raw_elm.attributes.clone(),
-            children: vec![],
+            children: node_vec,
             tag_name: raw_elm.name,
         }
     }
@@ -44,14 +44,14 @@ impl Node {
         }
     }
 
-    fn new_elm(elm: &RawElm) -> Node {
+    fn new_from_raw(elm: &RawElm) -> Node {
         let mut children = vec![];
         for child in &elm.children {
             children.push(Node::new_from_node(child));
         }
         Node {
             uuid: nanoid!(),
-            content: NodeContent::Element(Element::new_raw(elm.clone())),
+            content: NodeContent::Element(Element::new_from_raw(elm.clone(), children)),
         }
     }
 
@@ -66,7 +66,7 @@ impl Node {
     pub fn new_from_node(raw_node: &RawNode) -> Node {
         match raw_node {
             RawNode::Text(text) => Node::new_text(text),
-            RawNode::Element(elm) => Node::new_elm(elm),
+            RawNode::Element(elm) => Node::new_from_raw(elm),
             RawNode::Comment(comment) => Node::new_comment(comment),
         }
     }

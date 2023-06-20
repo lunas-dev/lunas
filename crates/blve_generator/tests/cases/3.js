@@ -10,11 +10,20 @@ export default function(elm) {
       balue.v += "xxx"
     }
 
-    elm.innerHTML = `<div></div>`;
+    elm.innerHTML = `<div><input id="test" value="${balue.v}"></input><div id="test">${escapeHtml(balue.v)}</div><button id="test">xxx</button></div>`;
 
-    const [] = getElmRefs([], 0);
+    const [testRef,testRef,testRef] = getElmRefs(["test","test","test"], 7);
+
+    addEvListener(testRef, "input", onInput);
+
+    addEvListener(testRef, "click", xxx);
 
     refs[2] = genUpdateFunc(() => {
+        refs[0]  & 1 && replaceAttr("value", balue.v, testRef);
+    
+        refs[0] & 1 && replaceText(`${escapeHtml(balue.v)}`, testRef);
+    
+        refs[0] & 0 && replaceText(`xxx`, testRef);
     
     });
 

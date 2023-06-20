@@ -7,11 +7,20 @@ export default function(elm) {
       inputValue.v = "foo"
     }
 
-    elm.innerHTML = `<div></div>`;
+    elm.innerHTML = `<div><input id="test"></input><div id="test">inputValue: ${escapeHtml(inputValue.v)}</div><button id="test">set foo</button></div>`;
 
-    const [] = getElmRefs([], 0);
+    const [testRef,testRef,testRef] = getElmRefs(["test","test","test"], 7);
+
+    addEvListener(testRef, "input", (e)=>inputValue.v = event.target.value);
+
+    addEvListener(testRef, "click", setFoo);
 
     refs[2] = genUpdateFunc(() => {
+        refs[0]  & 1 && replaceAttr("value", inputValue.v, testRef);
+    
+        refs[0] & 1 && replaceText(`inputValue: ${escapeHtml(inputValue.v)}`, testRef);
+    
+        refs[0] & 0 && replaceText(`set foo`, testRef);
     
     });
 
