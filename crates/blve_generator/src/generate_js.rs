@@ -16,24 +16,25 @@ pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> Result<(String, Option
     let (variables, variable_names, js_output) = analyze_js(blocks);
 
     // Clone HTML as mutable reference
-    let mut html = blocks.detailed_language_blocks.dom.clone();
     let mut needed_id = vec![];
 
     let mut elm_and_var_relation = vec![];
     let mut action_and_target = vec![];
 
-    let new_node = Node::new_from_dom(&html)?;
+    let mut new_node = Node::new_from_dom(&blocks.detailed_language_blocks.dom)?;
 
     // Analyze HTML
     check_html_elms(
         &variable_names,
-        new_node,
+        &mut new_node,
         &mut needed_id,
         &mut elm_and_var_relation,
         &mut action_and_target,
+        None,
+        &mut vec![],
     )?;
 
-    let html_str = html.to_string();
+    let html_str = new_node.to_string();
 
     // Generate JavaScript
     let html_insert = format!("elm.innerHTML = `{}`;", html_str);

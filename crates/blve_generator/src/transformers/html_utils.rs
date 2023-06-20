@@ -1,7 +1,8 @@
-use std::{borrow::BorrowMut, cell::RefCell, rc::Rc, vec};
-
 use crate::{
-    html_with_relation::structs::{Element, Node, NodeContent},
+    html_with_relation::{
+        html_manipulation::{HtmlManipulation, HtmlManipulator, SetIdForReactiveContent},
+        structs::{Element, Node, NodeContent},
+    },
     structs::{
         transform_info::{ActionAndTarget, EventBindingStatement, EventTarget, NeededIdName},
         transform_targets::{
@@ -17,26 +18,20 @@ use super::utils::{append_v_to_vars, gen_nanoid};
 // RCを使用して、子から親のmutableな変数を参照できるようにする可能性も視野に入れる
 pub fn check_html_elms(
     varibale_names: &Vec<String>,
-    node: Rc<RefCell<Node>>,
+    node: &mut Node,
     needed_ids: &mut Vec<NeededIdName>,
     elm_and_var_relation: &mut Vec<ElmAndReactiveInfo>,
     actions_and_targets: &mut Vec<ActionAndTarget>,
+    parent_uuid: Option<&String>,
+    html_manipulators: &mut Vec<HtmlManipulator>,
 ) -> Result<(), String> {
-    let immutable_node = (*node).borrow();
-    let content = &immutable_node.content;
-    let parent = immutable_node.parent.upgrade();
-    match content {
+    match &mut node.content {
         NodeContent::Element(element) => {
-            for (key, action_value) in element.attributes.clone() {
+            for (key, action_value) in &element.attributes.clone() {
                 // if attrs.name starts with "@"
                 if key.starts_with("@") {
                     let action_name = &key[1..];
-                    let immutable_node = &mut *(*node).borrow_mut();
-                    let mutEle = match immutable_node.content {
-                        NodeContent::Element(ref mut ele) => ele,
-                        _ => panic!(""),
-                    };
-                    let id = set_id_for_needed_elm(mutEle, needed_ids);
+                    let id = set_id_for_needed_elm(element, needed_ids);
                     if let Some(value) = &&action_value {
                         actions_and_targets.push(ActionAndTarget {
                             action_name: action_name.to_string(),
@@ -44,15 +39,10 @@ pub fn check_html_elms(
                             target: id,
                         })
                     }
-                    mutEle.attributes.remove(&key);
+                    element.attributes.remove(key);
                 } else if key.starts_with("::") {
                     let binding_attr = &key[2..];
-                    let immutable_node = &mut *(*node).borrow_mut();
-                    let mutEle = match immutable_node.content {
-                        NodeContent::Element(ref mut ele) => ele,
-                        _ => panic!(""),
-                    };
-                    let id: String = set_id_for_needed_elm(mutEle, needed_ids);
+                    let id: String = set_id_for_needed_elm(element, needed_ids);
                     if let Some(value) = &&action_value {
                         actions_and_targets.push(ActionAndTarget {
                             action_name: "input".to_string(),
@@ -75,7 +65,7 @@ pub fn check_html_elms(
                             ),
                         );
                     }
-                    mutEle.attributes.remove(&key);
+                    element.attributes.remove(key);
                 } else if key.starts_with(":") {
                     // TODO: reconsider about this constraint
                     if key == ":innerHtml" {
@@ -83,13 +73,7 @@ pub fn check_html_elms(
                     } else if key == ":textContent" {
                         Err(format!(":textContent is not supported"))?;
                     }
-
-                    let immutable_node = &mut *(*node).borrow_mut();
-                    let mut_ele = match immutable_node.content {
-                        NodeContent::Element(ref mut ele) => ele,
-                        _ => panic!(""),
-                    };
-                    let id: String = set_id_for_needed_elm(mut_ele, needed_ids);
+                    let id: String = set_id_for_needed_elm(element, needed_ids);
                     let raw_attr_name = &key[1..];
                     let raw_attr_value = action_value.clone();
 
@@ -121,8 +105,8 @@ pub fn check_html_elms(
                     let (raw_attr_value, used_vars) =
                         append_v_to_vars(&mut raw_attr_value, varibale_names);
 
-                    mut_ele.attributes.remove(&key);
-                    mut_ele.attributes.insert(
+                    element.attributes.remove(key);
+                    element.attributes.insert(
                         raw_attr_name.to_string(),
                         Some(format!("${{{}}}", raw_attr_value)),
                     );
@@ -137,41 +121,51 @@ pub fn check_html_elms(
                 }
             }
 
-            for child_node in element.children.borrow().iter() {
+            for child_node in &mut element.children {
                 check_html_elms(
                     varibale_names,
-                    child_node.clone(),
+                    child_node,
                     needed_ids,
                     elm_and_var_relation,
                     actions_and_targets,
+                    Some(&node.uuid),
+                    html_manipulators,
                 )?;
+            }
+            for manip in html_manipulators {
+                if manip.target_uuid == node.uuid {
+                    match &manip.manipulations {
+                        HtmlManipulation::RemoveChildForIfStatement(remove_statement) => {
+                            let id = set_id_for_needed_elm(element, needed_ids);
+                            // TODO:実装する
+                        }
+                        HtmlManipulation::SetIdForReactiveContent(set_id) => {
+                            let id = set_id_for_needed_elm(element, needed_ids);
+                            elm_and_var_relation.push(ElmAndReactiveInfo::ElmAndVariableRelation(
+                                ElmAndVariableContentRelation {
+                                    elm_id: id,
+                                    variable_names: set_id.depenent_vars.clone(),
+                                    content_of_element: set_id.text.clone(),
+                                },
+                            ));
+                        }
+                    }
+                }
             }
             Ok(())
         }
         NodeContent::TextNode(text) => {
-            let immutable_node = &mut *(*node).borrow_mut();
-            let mut_txt = match immutable_node.content {
-                NodeContent::TextNode(ref mut ele) => ele,
-                _ => panic!(""),
-            };
-            let dep_vars = replace_text_with_reactive_value(mut_txt, varibale_names);
-            let parent = parent.unwrap().clone();
-            let parent_content = &mut *&mut (*parent).borrow_mut().content;
-            let parent_elm = match parent_content {
-                NodeContent::Element(elm) => elm,
-                _ => panic!("parent node must be Element"),
-            };
-            let id = set_id_for_needed_elm(parent_elm, needed_ids);
-            elm_and_var_relation.push(ElmAndReactiveInfo::ElmAndVariableRelation(
-                ElmAndVariableContentRelation {
-                    elm_id: id,
-                    variable_names: dep_vars,
-                    content_of_element: text.clone(),
-                },
-            ));
+            let dep_vars = replace_text_with_reactive_value(text, varibale_names);
+            html_manipulators.push(HtmlManipulator {
+                target_uuid: parent_uuid.unwrap().clone(),
+                manipulations: HtmlManipulation::SetIdForReactiveContent(SetIdForReactiveContent {
+                    text: text.clone(),
+                    depenent_vars: dep_vars,
+                }),
+            });
             Ok(())
         }
-        crate::html_with_relation::structs::NodeContent::Comment(_) => todo!(),
+        crate::html_with_relation::structs::NodeContent::Comment(_) => Ok(()),
     }
     // let node_len = *(&nodes.len().clone()) as u32;
     // for node in nodes {
