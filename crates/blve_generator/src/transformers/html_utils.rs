@@ -1,5 +1,5 @@
 use crate::{
-    html_with_relation::{
+    orig_html_struct::{
         html_manipulation::{HtmlManipulation, HtmlManipulator, SetIdForReactiveContent},
         structs::{Element, Node, NodeContent},
     },
@@ -165,7 +165,7 @@ pub fn check_html_elms(
             });
             Ok(())
         }
-        crate::html_with_relation::structs::NodeContent::Comment(_) => Ok(()),
+        crate::orig_html_struct::structs::NodeContent::Comment(_) => Ok(()),
     }
     // let node_len = *(&nodes.len().clone()) as u32;
     // for node in nodes {

@@ -3,7 +3,7 @@ use std::vec;
 use blve_parser::DetailedBlock;
 
 use crate::{
-    html_with_relation::structs::Node,
+    orig_html_struct::structs::Node,
     structs::{
         transform_info::{ActionAndTarget, NeededIdName, VariableNameAndAssignedNumber},
         transform_targets::ElmAndReactiveInfo,
