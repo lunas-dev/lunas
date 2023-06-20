@@ -1,6 +1,7 @@
 mod generate_js;
 mod structs;
 mod transformers;
+mod html_with_relation;
 use blve_parser::DetailedBlock;
 use generate_js::generate_js_from_blocks;
 
