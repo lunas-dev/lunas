@@ -3,6 +3,7 @@ use std::vec;
 use blve_parser::DetailedBlock;
 
 use crate::{
+    html_with_relation::structs::Node,
     structs::{
         transform_info::{ActionAndTarget, NeededIdName, VariableNameAndAssignedNumber},
         transform_targets::ElmAndReactiveInfo,
@@ -20,6 +21,8 @@ pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> Result<(String, Option
 
     let mut elm_and_var_relation = vec![];
     let mut action_and_target = vec![];
+
+    let new_node = Node::new_from_dom(&html)?;
 
     // Analyze HTML
     check_html_elms(
@@ -118,7 +121,9 @@ fn create_event_listener(actions_and_targets: Vec<ActionAndTarget>) -> Vec<Strin
     for action_and_target in actions_and_targets {
         result.push(format!(
             "addEvListener({}Ref, \"{}\", {});",
-            action_and_target.target, action_and_target.action_name, action_and_target.action.to_string()
+            action_and_target.target,
+            action_and_target.action_name,
+            action_and_target.action.to_string()
         ));
     }
     result

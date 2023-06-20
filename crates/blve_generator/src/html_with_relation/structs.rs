@@ -1,22 +1,22 @@
-use blve_html_parser::{Element as RawElm, Node as RawNode};
+use blve_html_parser::{Dom as RawDom, Element as RawElm, Node as RawNode};
 use nanoid::nanoid;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
-struct Node {
+pub struct Node {
     uuid: String,
     parent: RefCell<Option<Weak<Node>>>,
     content: NodeContent,
 }
 
-enum NodeContent {
+pub enum NodeContent {
     Element(Element),
     TextNode(String),
     Comment(String),
 }
 
-struct Element {
+pub struct Element {
     tag_name: String,
     attributes: HashMap<String, Option<String>>,
     children: RefCell<Vec<Rc<Node>>>,
@@ -56,12 +56,20 @@ impl Node {
             content: NodeContent::Element(Element::new_raw(elm.clone())),
         });
         for child in &elm.children {
-            Node::add_child(Rc::clone(&node_rc), Node::new_from(child.clone())).unwrap();
+            Node::add_child(Rc::clone(&node_rc), Node::new_from_node(child.clone())).unwrap();
         }
         node_rc
     }
 
-    fn new_from(raw_node: RawNode) -> Rc<Node> {
+    pub fn new_from_dom(raw_dom: &RawDom) -> Result<Rc<Node>, String> {
+        match raw_dom.children.len() {
+            0 => Err("No children".to_string()),
+            1 => Ok(Node::new_from_node(raw_dom.children[0].clone())),
+            _ => Err("More than one child".to_string()),
+        }
+    }
+
+    pub fn new_from_node(raw_node: RawNode) -> Rc<Node> {
         match raw_node {
             RawNode::Text(text) => Node::new_text(text),
             RawNode::Element(elm) => Node::new_elm(elm),
@@ -120,7 +128,7 @@ mod tests {
         let raw_html = "<div><p>hello</p></div>";
         let raw_node = Dom::parse(raw_html).unwrap();
         let el = raw_node.children[0].clone();
-        let node = Node::new_from(el);
+        let node = Node::new_from_node(el);
         assert_eq!(node.to_string(), raw_html);
     }
 }
