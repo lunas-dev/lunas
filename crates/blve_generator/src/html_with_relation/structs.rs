@@ -5,9 +5,9 @@ use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 pub struct Node {
-    uuid: String,
-    parent: RefCell<Option<Weak<Node>>>,
-    content: NodeContent,
+    pub uuid: String,
+    pub parent: Weak<RefCell<Node>>,
+    pub content: NodeContent,
 }
 
 pub enum NodeContent {
@@ -17,9 +17,9 @@ pub enum NodeContent {
 }
 
 pub struct Element {
-    tag_name: String,
-    attributes: HashMap<String, Option<String>>,
-    children: RefCell<Vec<Rc<Node>>>,
+    pub tag_name: String,
+    pub attributes: HashMap<String, Option<String>>,
+    pub children: RefCell<Vec<Rc<RefCell<Node>>>>,
 }
 
 impl Element {
@@ -33,43 +33,43 @@ impl Element {
 }
 
 impl Node {
-    fn new_comment(comment: String) -> Rc<Node> {
-        Rc::new(Node {
-            parent: RefCell::new(None),
+    fn new_comment(comment: String) -> Rc<RefCell<Node>> {
+        Rc::new(RefCell::new(Node {
+            parent: Weak::new(),
             uuid: nanoid!(),
             content: NodeContent::Comment(comment),
-        })
+        }))
     }
 
-    fn new_text(text: String) -> Rc<Node> {
-        Rc::new(Node {
-            parent: RefCell::new(None),
+    fn new_text(text: String) -> Rc<RefCell<Node>> {
+        Rc::new(RefCell::new(Node {
+            parent: Weak::new(),
             uuid: nanoid!(),
             content: NodeContent::TextNode(text),
-        })
+        }))
     }
 
-    fn new_elm(elm: RawElm) -> Rc<Node> {
-        let node_rc = Rc::new(Node {
-            parent: RefCell::new(None),
+    fn new_elm(elm: RawElm) -> Rc<RefCell<Node>> {
+        let node_rc = Rc::new(RefCell::new(Node {
+            parent: Weak::new(),
             uuid: nanoid!(),
             content: NodeContent::Element(Element::new_raw(elm.clone())),
-        });
+        }));
         for child in &elm.children {
             Node::add_child(Rc::clone(&node_rc), Node::new_from_node(child.clone())).unwrap();
         }
         node_rc
     }
 
-    pub fn new_from_dom(raw_dom: &RawDom) -> Result<Rc<Node>, String> {
+    pub fn new_from_dom(raw_dom: &RawDom) -> Result<Rc<RefCell<Node>>, String> {
         match raw_dom.children.len() {
-            0 => Err("No children".to_string()),
+            0 => Err("Root element has no child".to_string()),
             1 => Ok(Node::new_from_node(raw_dom.children[0].clone())),
-            _ => Err("More than one child".to_string()),
+            _ => Err("Root element has more than one child".to_string()),
         }
     }
 
-    pub fn new_from_node(raw_node: RawNode) -> Rc<Node> {
+    pub fn new_from_node(raw_node: RawNode) -> Rc<RefCell<Node>> {
         match raw_node {
             RawNode::Text(text) => Node::new_text(text),
             RawNode::Element(elm) => Node::new_elm(elm),
@@ -77,13 +77,10 @@ impl Node {
         }
     }
 
-    fn add_child(parent: Rc<Node>, child: Rc<Node>) -> Result<(), String> {
-        match &parent.as_ref().content {
+    fn add_child(parent: Rc<RefCell<Node>>, child: Rc<RefCell<Node>>) -> Result<(), String> {
+        match parent.borrow_mut().content {
             NodeContent::Element(elm) => {
-                child
-                    .parent
-                    .borrow_mut()
-                    .replace(Rc::downgrade(&Rc::clone(&parent)));
+                child.borrow_mut().parent = Rc::downgrade(&Rc::clone(&parent));
                 elm.children.borrow_mut().push(child);
                 Ok(())
             }
@@ -110,7 +107,7 @@ impl ToString for Element {
         }
         let mut children = String::new();
         for child in self.children.borrow().iter() {
-            children.push_str(&child.to_string());
+            children.push_str(&child.borrow().to_string());
         }
         format!(
             "<{}{}>{}</{}>",
@@ -120,15 +117,12 @@ impl ToString for Element {
 }
 
 mod tests {
-    use super::*;
-    use blve_html_parser::Dom;
-
     #[test]
     fn test_node_to_string() {
         let raw_html = "<div><p>hello</p></div>";
-        let raw_node = Dom::parse(raw_html).unwrap();
+        let raw_node = blve_html_parser::Dom::parse(raw_html).unwrap();
         let el = raw_node.children[0].clone();
-        let node = Node::new_from_node(el);
-        assert_eq!(node.to_string(), raw_html);
+        let node = crate::html_with_relation::structs::Node::new_from_node(el);
+        assert_eq!(node.borrow().to_string(), raw_html);
     }
 }
