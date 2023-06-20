@@ -13,18 +13,11 @@ export default function(elm) {
       color.v = 'blue'
     }
 
-    elm.innerHTML = `<span id="test" style="${`color : ${ color.v } `}">I am a color</span><button id="test">黄色</button><button id="test">赤色</button><button id="test">青色</button>`;
+    elm.innerHTML = `<div></div>`;
 
-    const [testRef,testRef,testRef,testRef] = getElmRefs(["test","test","test","test"], 15);
-
-    addEvListener(testRef, "click", yellow);
-
-    addEvListener(testRef, "click", red);
-
-    addEvListener(testRef, "click", blve);
+    const [] = getElmRefs([], 0);
 
     refs[2] = genUpdateFunc(() => {
-        refs[0]  & 1 && replaceAttr("style", `color : ${ color.v } `, testRef);
     
     });
 

@@ -84,17 +84,26 @@ impl ToString for Node {
 
 impl ToString for Element {
     fn to_string(&self) -> String {
-        let mut attributes = String::new();
-        for (key, value) in self.attributes.iter() {
-            attributes.push_str(&format!(" {}=\"{}\"", key, value.as_ref().unwrap()));
+        let mut attribute_str = String::new();
+
+        let mut attributes: Vec<_> = self.attributes.iter().collect();
+        attributes.sort_by(|a, b| a.0.cmp(b.0));
+
+        for (key, value) in attributes {
+            if let Some(value) = value {
+                attribute_str.push_str(&format!(" {}=\"{}\"", key, value));
+            } else {
+                attribute_str.push_str(&format!(" {}", key));
+            }
         }
+
         let mut children = String::new();
         for child in &self.children {
             children.push_str(&child.to_string());
         }
         format!(
             "<{}{}>{}</{}>",
-            self.tag_name, attributes, children, self.tag_name
+            self.tag_name, attribute_str, children, self.tag_name
         )
     }
 }
