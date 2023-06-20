@@ -22,16 +22,21 @@ pub fn check_html_elms(
     elm_and_var_relation: &mut Vec<ElmAndReactiveInfo>,
     actions_and_targets: &mut Vec<ActionAndTarget>,
 ) -> Result<(), String> {
-    let mut_node = &mut *(*node).borrow_mut();
-    let content = &mut mut_node.content;
-    let parent = mut_node.parent.upgrade();
+    let immutable_node = (*node).borrow();
+    let content = &immutable_node.content;
+    let parent = immutable_node.parent.upgrade();
     match content {
         NodeContent::Element(element) => {
             for (key, action_value) in element.attributes.clone() {
                 // if attrs.name starts with "@"
                 if key.starts_with("@") {
                     let action_name = &key[1..];
-                    let id = set_id_for_needed_elm(element, needed_ids);
+                    let immutable_node = &mut *(*node).borrow_mut();
+                    let mutEle = match immutable_node.content {
+                        NodeContent::Element(ref mut ele) => ele,
+                        _ => panic!(""),
+                    };
+                    let id = set_id_for_needed_elm(mutEle, needed_ids);
                     if let Some(value) = &&action_value {
                         actions_and_targets.push(ActionAndTarget {
                             action_name: action_name.to_string(),
@@ -39,10 +44,15 @@ pub fn check_html_elms(
                             target: id,
                         })
                     }
-                    element.attributes.remove(&key);
+                    mutEle.attributes.remove(&key);
                 } else if key.starts_with("::") {
                     let binding_attr = &key[2..];
-                    let id: String = set_id_for_needed_elm(element, needed_ids);
+                    let immutable_node = &mut *(*node).borrow_mut();
+                    let mutEle = match immutable_node.content {
+                        NodeContent::Element(ref mut ele) => ele,
+                        _ => panic!(""),
+                    };
+                    let id: String = set_id_for_needed_elm(mutEle, needed_ids);
                     if let Some(value) = &&action_value {
                         actions_and_targets.push(ActionAndTarget {
                             action_name: "input".to_string(),
@@ -65,7 +75,7 @@ pub fn check_html_elms(
                             ),
                         );
                     }
-                    element.attributes.remove(&key);
+                    mutEle.attributes.remove(&key);
                 } else if key.starts_with(":") {
                     // TODO: reconsider about this constraint
                     if key == ":innerHtml" {
@@ -74,7 +84,12 @@ pub fn check_html_elms(
                         Err(format!(":textContent is not supported"))?;
                     }
 
-                    let id: String = set_id_for_needed_elm(element, needed_ids);
+                    let immutable_node = &mut *(*node).borrow_mut();
+                    let mut_ele = match immutable_node.content {
+                        NodeContent::Element(ref mut ele) => ele,
+                        _ => panic!(""),
+                    };
+                    let id: String = set_id_for_needed_elm(mut_ele, needed_ids);
                     let raw_attr_name = &key[1..];
                     let raw_attr_value = action_value.clone();
 
@@ -106,8 +121,8 @@ pub fn check_html_elms(
                     let (raw_attr_value, used_vars) =
                         append_v_to_vars(&mut raw_attr_value, varibale_names);
 
-                    element.attributes.remove(&key);
-                    element.attributes.insert(
+                    mut_ele.attributes.remove(&key);
+                    mut_ele.attributes.insert(
                         raw_attr_name.to_string(),
                         Some(format!("${{{}}}", raw_attr_value)),
                     );
@@ -134,7 +149,12 @@ pub fn check_html_elms(
             Ok(())
         }
         NodeContent::TextNode(text) => {
-            let dep_vars = replace_text_with_reactive_value(text, varibale_names);
+            let immutable_node = &mut *(*node).borrow_mut();
+            let mut_txt = match immutable_node.content {
+                NodeContent::TextNode(ref mut ele) => ele,
+                _ => panic!(""),
+            };
+            let dep_vars = replace_text_with_reactive_value(mut_txt, varibale_names);
             let parent = parent.unwrap().clone();
             let parent_content = &mut *&mut (*parent).borrow_mut().content;
             let parent_elm = match parent_content {

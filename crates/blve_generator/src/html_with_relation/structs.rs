@@ -78,7 +78,7 @@ impl Node {
     }
 
     fn add_child(parent: Rc<RefCell<Node>>, child: Rc<RefCell<Node>>) -> Result<(), String> {
-        match parent.borrow_mut().content {
+        match &parent.borrow().content {
             NodeContent::Element(elm) => {
                 child.borrow_mut().parent = Rc::downgrade(&Rc::clone(&parent));
                 elm.children.borrow_mut().push(child);

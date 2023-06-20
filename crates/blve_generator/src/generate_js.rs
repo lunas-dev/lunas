@@ -27,7 +27,7 @@ pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> Result<(String, Option
     // Analyze HTML
     check_html_elms(
         &variable_names,
-        &mut html.children,
+        new_node,
         &mut needed_id,
         &mut elm_and_var_relation,
         &mut action_and_target,
