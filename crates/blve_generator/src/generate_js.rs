@@ -34,6 +34,7 @@ pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> Result<(String, Option
         None,
         &mut vec![],
         &mut if_block_info,
+        &vec![],
     )?;
 
     let html_str = new_node.to_string();

@@ -31,9 +31,12 @@ pub fn check_html_elms(
     parent_uuid: Option<&String>,
     html_manipulators: &mut Vec<HtmlManipulator>,
     if_block_info: &mut Vec<IfBlockInfo>,
+    if_blk_ctx: &Vec<String>,
 ) -> Result<(), String> {
     match &mut node.content {
         NodeContent::Element(element) => {
+            let mut if_block_id = None;
+            let mut ctx_array = if_blk_ctx.clone();
             for (key, action_value) in &element.attributes.clone() {
                 // if attrs.name starts with "@"
                 if key.starts_with("@") {
@@ -55,6 +58,7 @@ pub fn check_html_elms(
                             RemoveChildForIfStatement {
                                 child_uuid: node.uuid.clone(),
                                 condition: condition.clone(),
+                                block_id: node.uuid.clone(),
                             },
                         ),
                     });
@@ -62,6 +66,7 @@ pub fn check_html_elms(
                     element
                         .attributes
                         .insert("$$$conditional$$$".to_string(), None);
+                    if_block_id = Some(node.uuid.clone())
                 } else if key.starts_with("::") {
                     let binding_attr = &key[2..];
                     let id: String = set_id_for_needed_elm(element, needed_ids);
@@ -143,6 +148,10 @@ pub fn check_html_elms(
                 }
             }
 
+            if let Some(if_block_id) = if_block_id {
+                ctx_array.push(if_block_id);
+            }
+
             for child_node in &mut element.children {
                 check_html_elms(
                     varibale_names,
@@ -153,6 +162,7 @@ pub fn check_html_elms(
                     Some(&node.uuid),
                     html_manipulators,
                     if_block_info,
+                    &ctx_array,
                 )?;
             }
             for manip in html_manipulators {
@@ -186,6 +196,8 @@ pub fn check_html_elms(
                                 elm,
                                 ref_text_node_id,
                                 condition: remove_statement.condition.clone(),
+                                ctx: ctx_array.clone(),
+                                if_block_id: remove_statement.block_id.clone(),
                             });
                         }
                         HtmlManipulation::SetIdForReactiveContent(set_id) => {

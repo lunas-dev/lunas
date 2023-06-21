@@ -11,6 +11,7 @@ pub enum HtmlManipulation {
 pub struct RemoveChildForIfStatement {
     pub child_uuid: String,
     pub condition: String,
+    pub block_id: String,
 }
 
 pub struct SetIdForReactiveContent {
