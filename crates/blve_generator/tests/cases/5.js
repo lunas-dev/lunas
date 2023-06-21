@@ -24,12 +24,6 @@ export default function(elm) {
     
         refs[0] & 1 && replaceText(`inputValue: ${escapeHtml(inputValue.v)}`, testRef);
     
-        refs[0] & 0 && replaceText(`setFoo`, testRef);
-    
-        refs[0] & 0 && replaceText(`addFoo1`, testRef);
-    
-        refs[0] & 0 && replaceText(`addFoo2`, testRef);
-    
     });
 
 }

@@ -156,13 +156,17 @@ pub fn check_html_elms(
         }
         NodeContent::TextNode(text) => {
             let dep_vars = replace_text_with_reactive_value(text, varibale_names);
-            html_manipulators.push(HtmlManipulator {
-                target_uuid: parent_uuid.unwrap().clone(),
-                manipulations: HtmlManipulation::SetIdForReactiveContent(SetIdForReactiveContent {
-                    text: text.clone(),
-                    depenent_vars: dep_vars,
-                }),
-            });
+            if dep_vars.len() > 0 {
+                html_manipulators.push(HtmlManipulator {
+                    target_uuid: parent_uuid.unwrap().clone(),
+                    manipulations: HtmlManipulation::SetIdForReactiveContent(
+                        SetIdForReactiveContent {
+                            text: text.clone(),
+                            depenent_vars: dep_vars,
+                        },
+                    ),
+                });
+            }
             Ok(())
         }
         crate::orig_html_struct::structs::NodeContent::Comment(_) => Ok(()),
