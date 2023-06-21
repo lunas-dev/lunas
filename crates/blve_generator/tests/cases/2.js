@@ -26,14 +26,6 @@ export default function(elm) {
     refs[2] = genUpdateFunc(() => {
         refs[0]  & 1 && replaceAttr("style", `color : ${ color.v } `, testRef);
     
-        refs[0] & 0 && replaceText(`I am a color`, testRef);
-    
-        refs[0] & 0 && replaceText(`黄色`, testRef);
-    
-        refs[0] & 0 && replaceText(`赤色`, testRef);
-    
-        refs[0] & 0 && replaceText(`青色`, testRef);
-    
     });
 
 }

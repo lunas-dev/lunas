@@ -23,8 +23,6 @@ export default function(elm) {
     
         refs[0] & 1 && replaceText(`${escapeHtml(balue.v)}`, testRef);
     
-        refs[0] & 0 && replaceText(`xxx`, testRef);
-    
     });
 
 }

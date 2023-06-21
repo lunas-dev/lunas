@@ -19,18 +19,14 @@ export default function(elm) {
 
     elm.innerHTML = `<div><h1 id="abc">Hello Blve!</h1><div id="test">${escapeHtml(count.v)}</div><button id="test">+1</button><button id="test">${escapeHtml(interval.v == null ? "start" : "clear")}</button></div>`;
 
-    const [abcRef,testRef,testRef,testRef] = getElmRefs(["abc","test","test","test"], 7);
+    const [testRef,testRef,testRef] = getElmRefs(["test","test","test"], 7);
 
     addEvListener(testRef, "click", increment);
 
     addEvListener(testRef, "click", clear);
 
     refs[2] = genUpdateFunc(() => {
-        refs[0] & 0 && replaceText(`Hello Blve!`, abcRef);
-    
         refs[0] & 1 && replaceText(`${escapeHtml(count.v)}`, testRef);
-    
-        refs[0] & 0 && replaceText(`+1`, testRef);
     
         refs[0] & 2 && replaceText(`${escapeHtml(interval.v == null ? "start" : "clear")}`, testRef);
     
