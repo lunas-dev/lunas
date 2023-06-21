@@ -20,6 +20,7 @@ pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> Result<(String, Option
 
     let mut elm_and_var_relation = vec![];
     let mut action_and_target = vec![];
+    let mut if_block_info = vec![];
 
     let mut new_node = Node::new_from_dom(&blocks.detailed_language_blocks.dom)?;
 
@@ -32,6 +33,7 @@ pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> Result<(String, Option
         &mut action_and_target,
         None,
         &mut vec![],
+        &mut if_block_info,
     )?;
 
     let html_str = new_node.to_string();
@@ -46,6 +48,10 @@ pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> Result<(String, Option
     codes.push(update_func_code);
     let full_code = gen_full_code(codes);
     let css_code = blocks.detailed_language_blocks.css.clone();
+
+    for if_block in if_block_info {
+        if_block.print();
+    }
 
     Ok((full_code, css_code))
 }

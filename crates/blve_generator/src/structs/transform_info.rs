@@ -1,4 +1,4 @@
-use crate::transformers::utils::append_v_to_vars;
+use crate::{orig_html_struct::structs::Node, transformers::utils::append_v_to_vars};
 
 #[derive(Debug, Clone)]
 pub struct AddStringToPosition {
@@ -66,4 +66,29 @@ impl EventTarget {
 fn word_is_one_word(word: &str) -> bool {
     word.chars()
         .all(|c| c.is_alphanumeric() || c == '_' || c == '$')
+}
+
+#[derive(Debug)]
+pub struct IfBlockInfo {
+    pub parent_id: String,
+    pub target_if_blk_id: String,
+    pub distance: u64,
+    pub target_anchor_id: Option<String>,
+    pub elm: Node,
+    pub ref_text_node_id: Option<String>,
+    pub condition: String,
+}
+
+impl IfBlockInfo {
+    pub fn print(&self) {
+        println!(
+            "parent_id: {} target_id: {} distance: {} target_anchor_id: {:?} ref_text_node_id: {:?} condition: {}",
+            self.parent_id,
+            self.target_if_blk_id,
+            self.distance,
+            self.target_anchor_id,
+            self.ref_text_node_id,
+            self.condition
+        );
+    }
 }

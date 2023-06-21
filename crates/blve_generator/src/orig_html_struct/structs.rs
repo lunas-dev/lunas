@@ -2,17 +2,20 @@ use blve_html_parser::{Dom as RawDom, Element as RawElm, Node as RawNode};
 use nanoid::nanoid;
 use std::collections::HashMap;
 
+#[derive(Debug, Clone)]
 pub struct Node {
     pub uuid: String,
     pub content: NodeContent,
 }
 
+#[derive(Debug, Clone)]
 pub enum NodeContent {
     Element(Element),
     TextNode(String),
     Comment(String),
 }
 
+#[derive(Debug, Clone)]
 pub struct Element {
     pub tag_name: String,
     pub attributes: HashMap<String, Option<String>>,
@@ -26,6 +29,34 @@ impl Element {
             children: node_vec,
             tag_name: raw_elm.name,
         }
+    }
+
+    pub fn remove_child(&mut self, child_uuid: &String) -> (Node, u64, u64, Option<u64>) {
+        let idx = self
+            .children
+            .iter()
+            .position(|child| child.uuid == *child_uuid)
+            .unwrap();
+        let mut cur = idx.clone() + 1;
+        let (distance, idx_of_ref) = loop {
+            if cur >= self.children.len() {
+                break (cur as u64 - idx as u64, None);
+            }
+            let cur_child = &self.children[cur];
+            match &cur_child.content {
+                NodeContent::Element(elm) => {
+                    if !elm.attributes.contains_key("$$$conditional$$$") {
+                        break (cur as u64 - idx as u64, Some(cur as u64));
+                    }
+                }
+                _ => {}
+            }
+            cur += 1;
+            println!("cur: {}", cur)
+        };
+        let elm_node = self.children[idx].clone();
+        self.children.retain(|child| child.uuid != *child_uuid);
+        (elm_node, idx as u64, distance, idx_of_ref)
     }
 }
 

@@ -1,0 +1,17 @@
+html:
+  <div>
+    <div id="1" :if="boolVal1">AAA</div>
+    <div id="2" :if="boolVal2">AAA</div>
+    <div id="3" :if="boolVal3">AAA</div>
+    <div id="4" >AAA</div>
+    <div id="5" :if="boolVal4">AAA</div>
+    <div id="6" :if="boolVal5">AAA</div>
+    <div id="7" :if="boolVal6">AAA</div>
+  </div>
+script:
+  let boolVal1 = false
+  let boolVal2 = false
+  let boolVal3 = false
+  let boolVal4 = false
+  let boolVal5 = false
+  let boolVal6 = false

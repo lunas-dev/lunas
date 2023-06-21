@@ -1,10 +1,16 @@
+use nanoid::nanoid;
+
 use crate::{
     orig_html_struct::{
-        html_manipulation::{HtmlManipulation, HtmlManipulator, SetIdForReactiveContent},
+        html_manipulation::{
+            HtmlManipulation, HtmlManipulator, RemoveChildForIfStatement, SetIdForReactiveContent,
+        },
         structs::{Element, Node, NodeContent},
     },
     structs::{
-        transform_info::{ActionAndTarget, EventBindingStatement, EventTarget, NeededIdName},
+        transform_info::{
+            ActionAndTarget, EventBindingStatement, EventTarget, IfBlockInfo, NeededIdName,
+        },
         transform_targets::{
             ElmAndReactiveAttributeRelation, ElmAndReactiveInfo, ElmAndVariableContentRelation,
             ReactiveAttr,
@@ -24,6 +30,7 @@ pub fn check_html_elms(
     actions_and_targets: &mut Vec<ActionAndTarget>,
     parent_uuid: Option<&String>,
     html_manipulators: &mut Vec<HtmlManipulator>,
+    if_block_info: &mut Vec<IfBlockInfo>,
 ) -> Result<(), String> {
     match &mut node.content {
         NodeContent::Element(element) => {
@@ -40,6 +47,21 @@ pub fn check_html_elms(
                         })
                     }
                     element.attributes.remove(key);
+                } else if key == ":if" {
+                    let condition = action_value.clone().unwrap();
+                    html_manipulators.push(HtmlManipulator {
+                        target_uuid: parent_uuid.unwrap().clone(),
+                        manipulations: HtmlManipulation::RemoveChildForIfStatement(
+                            RemoveChildForIfStatement {
+                                child_uuid: node.uuid.clone(),
+                                condition: condition.clone(),
+                            },
+                        ),
+                    });
+                    element.attributes.remove(key);
+                    element
+                        .attributes
+                        .insert("$$$conditional$$$".to_string(), None);
                 } else if key.starts_with("::") {
                     let binding_attr = &key[2..];
                     let id: String = set_id_for_needed_elm(element, needed_ids);
@@ -130,14 +152,41 @@ pub fn check_html_elms(
                     actions_and_targets,
                     Some(&node.uuid),
                     html_manipulators,
+                    if_block_info,
                 )?;
             }
             for manip in html_manipulators {
                 if manip.target_uuid == node.uuid {
                     match &manip.manipulations {
                         HtmlManipulation::RemoveChildForIfStatement(remove_statement) => {
-                            let id = set_id_for_needed_elm(element, needed_ids);
-                            // TODO:実装する
+                            let parent_id = set_id_for_needed_elm(element, needed_ids);
+                            let (elm, _, distance, idx_of_ref) =
+                                element.remove_child(&remove_statement.child_uuid);
+                            let target_anchor_id = if let Some(idx_of_ref) = idx_of_ref {
+                                // add id to ref_idx
+                                Some(set_id_for_needed_elm(
+                                    match &mut element.children[idx_of_ref as usize - 1].content {
+                                        NodeContent::Element(elm) => elm,
+                                        _ => panic!("not element"),
+                                    },
+                                    needed_ids,
+                                ))
+                            } else {
+                                None
+                            };
+                            let ref_text_node_id = match distance != 1 {
+                                true => Some(nanoid!()),
+                                false => None,
+                            };
+                            if_block_info.push(IfBlockInfo {
+                                parent_id,
+                                target_if_blk_id: remove_statement.child_uuid.clone(),
+                                distance,
+                                target_anchor_id,
+                                elm,
+                                ref_text_node_id,
+                                condition: remove_statement.condition.clone(),
+                            });
                         }
                         HtmlManipulation::SetIdForReactiveContent(set_id) => {
                             let id = set_id_for_needed_elm(element, needed_ids);
@@ -156,13 +205,17 @@ pub fn check_html_elms(
         }
         NodeContent::TextNode(text) => {
             let dep_vars = replace_text_with_reactive_value(text, varibale_names);
-            html_manipulators.push(HtmlManipulator {
-                target_uuid: parent_uuid.unwrap().clone(),
-                manipulations: HtmlManipulation::SetIdForReactiveContent(SetIdForReactiveContent {
-                    text: text.clone(),
-                    depenent_vars: dep_vars,
-                }),
-            });
+            if dep_vars.len() > 0 {
+                html_manipulators.push(HtmlManipulator {
+                    target_uuid: parent_uuid.unwrap().clone(),
+                    manipulations: HtmlManipulation::SetIdForReactiveContent(
+                        SetIdForReactiveContent {
+                            text: text.clone(),
+                            depenent_vars: dep_vars,
+                        },
+                    ),
+                });
+            }
             Ok(())
         }
         crate::orig_html_struct::structs::NodeContent::Comment(_) => Ok(()),
