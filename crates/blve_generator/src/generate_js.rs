@@ -1,5 +1,3 @@
-use std::{collections::HashSet, vec};
-
 use blve_parser::DetailedBlock;
 
 use crate::{
