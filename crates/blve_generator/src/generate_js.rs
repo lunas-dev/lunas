@@ -1,14 +1,14 @@
 use blve_parser::DetailedBlock;
 
 use crate::{
-    orig_html_struct::structs::Node,
+    orig_html_struct::structs::{Node, NodeContent},
     structs::{
         transform_info::{
             ActionAndTarget, IfBlockInfo, NeededIdName, VariableNameAndAssignedNumber,
         },
         transform_targets::ElmAndReactiveInfo,
     },
-    transformers::{html_utils::check_html_elms, js_utils::analyze_js},
+    transformers::{html_utils::check_html_elms, js_utils::analyze_js, utils::append_v_to_vars},
 };
 
 pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> Result<(String, Option<String>), String> {
@@ -48,14 +48,12 @@ pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> Result<(String, Option
     let mut codes = vec![js_output, html_insert, ref_getter_expression];
     codes.extend(create_anchor_statements);
     codes.extend(event_listener_codes);
+    let render_if = gen_render_if_statements(&if_block_info, &variable_names);
+    codes.extend(render_if);
     let update_func_code = gen_update_func_statement(elm_and_var_relation, variables);
     codes.push(update_func_code);
     let full_code = gen_full_code(codes);
     let css_code = blocks.detailed_language_blocks.css.clone();
-
-    for if_block in if_block_info {
-        if_block.print();
-    }
 
     Ok((full_code, css_code))
 }
@@ -234,11 +232,11 @@ fn gen_create_anchor_statements(if_block_info: &Vec<IfBlockInfo>) -> Vec<String>
                     continue;
                 }
                 let anchor_id = match &if_block.target_anchor_id {
-                    Some(anchor_id) => anchor_id.clone(),
+                    Some(anchor_id) => format!("{}Ref", anchor_id),
                     None => "null".to_string(),
                 };
                 let create_anchor_statement = format!(
-                    "const {}Anchor = insertEmpty({}Ref,{}Ref);",
+                    "const {}Anchor = insertEmpty({}Ref,{});",
                     if_block.if_block_id, if_block.parent_id, anchor_id
                 );
                 create_anchor_statements.push(create_anchor_statement);
@@ -247,4 +245,57 @@ fn gen_create_anchor_statements(if_block_info: &Vec<IfBlockInfo>) -> Vec<String>
         }
     }
     create_anchor_statements
+}
+
+fn gen_render_if_statements(
+    if_block_info: &Vec<IfBlockInfo>,
+    variable_names: &Vec<String>,
+) -> Vec<String> {
+    let mut render_if = vec![];
+
+    for if_block in if_block_info {
+        let (name, js_gen_elm_code_arr) = match &if_block.elm.content {
+            NodeContent::Element(elm) => elm.generate_element_on_js(&if_block.if_block_id),
+            _ => panic!(),
+        };
+        let insert_elm = match if_block.target_anchor_id {
+            Some(_) => match if_block.distance > 1 {
+                true => {
+                    format!(
+                        "{}Ref.insertBefore({}, {}Anchor);",
+                        if_block.parent_id, name, if_block.if_block_id
+                    )
+                }
+                false => {
+                    format!(
+                        "{}Ref.insertBefore({}, {}Ref);",
+                        if_block.parent_id,
+                        name,
+                        if_block.target_anchor_id.as_ref().unwrap().clone()
+                    )
+                }
+            },
+            None => {
+                format!("{}Ref.insertBefore({}, null);", if_block.parent_id, name)
+            }
+        };
+        // TODO:
+        let js_gen_elm_code = js_gen_elm_code_arr
+            .iter()
+            .map(|c| create_indent(c))
+            .collect::<Vec<String>>()
+            .join("\n");
+        render_if.push(format!(
+            r#"const render{} = () => {{
+{}
+{}
+}}"#,
+            name,
+            js_gen_elm_code,
+            create_indent(insert_elm.as_str())
+        ));
+        let (cond, _) = append_v_to_vars(&if_block.condition, &variable_names);
+        render_if.push(format!("{} && render{}()", cond, name));
+    }
+    render_if
 }

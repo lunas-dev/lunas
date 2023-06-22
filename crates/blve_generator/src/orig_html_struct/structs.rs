@@ -1,6 +1,7 @@
 use blve_html_parser::{Dom as RawDom, Element as RawElm, Node as RawNode};
-use nanoid::nanoid;
 use std::collections::HashMap;
+
+use crate::transformers::utils::gen_nanoid;
 
 #[derive(Debug, Clone)]
 pub struct Node {
@@ -52,25 +53,55 @@ impl Element {
                 _ => {}
             }
             cur += 1;
-            println!("cur: {}", cur)
         };
         let elm_node = self.children[idx].clone();
         self.children.retain(|child| child.uuid != *child_uuid);
         (elm_node, idx as u64, distance, idx_of_ref)
+    }
+
+    pub fn generate_element_on_js(&self, if_block_name: &String) -> (String, Vec<String>) {
+        let elm_name = format!("{}Elm", if_block_name);
+        let mut js_code = vec![format!(
+            "let {} = document.createElement(\"{}\");\n",
+            elm_name, self.tag_name
+        )];
+        for (key, value) in &self.attributes {
+            if key == "$$$conditional$$$" {
+                continue;
+            }
+            match value {
+                Some(value) => {
+                    js_code.push(format!("{}[\"{}\"] = \"{}\";\n", elm_name, key, value))
+                }
+                None => js_code.push(format!("{}.setAttribute(\"{}\", \"\");\n", elm_name, key)),
+            }
+        }
+        let mut child_str = "".to_string();
+        if self.children.len() != 0 {
+            for child in &self.children {
+                child_str.push_str(child.to_string().as_str());
+            }
+            js_code.push(format!(
+                "{}Elm.innerHTML = \"{}\";\n",
+                if_block_name, child_str
+            ));
+        }
+
+        (elm_name, js_code)
     }
 }
 
 impl Node {
     fn new_comment(comment: &String) -> Node {
         Node {
-            uuid: nanoid!(),
+            uuid: gen_nanoid(),
             content: NodeContent::Comment(comment.clone()),
         }
     }
 
     fn new_text(text: &String) -> Node {
         Node {
-            uuid: nanoid!(),
+            uuid: gen_nanoid(),
             content: NodeContent::TextNode(text.clone()),
         }
     }
@@ -81,7 +112,7 @@ impl Node {
             children.push(Node::new_from_node(child));
         }
         Node {
-            uuid: nanoid!(),
+            uuid: gen_nanoid(),
             content: NodeContent::Element(Element::new_from_raw(elm.clone(), children)),
         }
     }

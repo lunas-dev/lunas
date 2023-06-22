@@ -80,20 +80,3 @@ pub struct IfBlockInfo {
     pub ctx: Vec<String>,
     pub if_block_id: String,
 }
-
-impl IfBlockInfo {
-    pub fn print(&self) {
-        println!(
-            "parent_id: {} target_id: {} distance: {} target_anchor_id: {:?} ref_text_node_id: {:?} condition: {} ctx: {:?} if_block_id: {}",
-            self.parent_id,
-            self.target_if_blk_id,
-            self.distance,
-            self.target_anchor_id,
-            self.ref_text_node_id,
-            self.condition,
-            self.ctx,
-            self.if_block_id
-
-        );
-    }
-}
