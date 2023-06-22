@@ -97,14 +97,21 @@ impl ToString for Element {
             }
         }
 
-        let mut children = String::new();
-        for child in &self.children {
-            children.push_str(&child.to_string());
+        match self.children.len() == 0 {
+            true => {
+                format!("<{}{} />", self.tag_name, attribute_str)
+            }
+            false => {
+                let mut children = String::new();
+                for child in &self.children {
+                    children.push_str(&child.to_string());
+                }
+                format!(
+                    "<{}{}>{}</{}>",
+                    self.tag_name, attribute_str, children, self.tag_name
+                )
+            }
         }
-        format!(
-            "<{}{}>{}</{}>",
-            self.tag_name, attribute_str, children, self.tag_name
-        )
     }
 }
 
