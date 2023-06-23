@@ -255,26 +255,20 @@ fn gen_render_if_statements(if_block_info: &Vec<IfBlockInfo>) -> Vec<String> {
             NodeContent::Element(elm) => elm.generate_element_on_js(&if_block.if_block_id),
             _ => panic!(),
         };
-        let insert_elm = match if_block.target_anchor_id {
-            Some(_) => match if_block.distance > 1 {
-                true => {
-                    format!(
-                        "{}Ref.insertBefore({}, {}Anchor);",
-                        if_block.parent_id, name, if_block.if_block_id
-                    )
-                }
-                false => {
-                    format!(
-                        "{}Ref.insertBefore({}, {}Ref);",
-                        if_block.parent_id,
-                        name,
-                        if_block.target_anchor_id.as_ref().unwrap().clone()
-                    )
-                }
+        let insert_elm = match if_block.distance > 1 {
+            true => format!(
+                "{}Ref.insertBefore({}, {}Anchor);",
+                if_block.parent_id, name, if_block.if_block_id
+            ),
+            false => match if_block.target_anchor_id {
+                Some(_) => format!(
+                    "{}Ref.insertBefore({}, {}Ref);",
+                    if_block.parent_id,
+                    name,
+                    if_block.target_anchor_id.as_ref().unwrap().clone()
+                ),
+                None => format!("{}Ref.insertBefore({}, null);", if_block.parent_id, name),
             },
-            None => {
-                format!("{}Ref.insertBefore({}, null);", if_block.parent_id, name)
-            }
         };
         // TODO: 一連の処理を関数にまとめる
         let js_gen_elm_code = js_gen_elm_code_arr

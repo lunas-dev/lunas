@@ -1,7 +1,7 @@
 use blve_html_parser::{Dom as RawDom, Element as RawElm, Node as RawNode};
 use std::collections::HashMap;
 
-use crate::transformers::utils::gen_nanoid;
+use crate::transformers::utils::UUID_GENERATOR;
 
 #[derive(Debug, Clone)]
 pub struct Node {
@@ -94,14 +94,14 @@ impl Element {
 impl Node {
     fn new_comment(comment: &String) -> Node {
         Node {
-            uuid: gen_nanoid(),
+            uuid: UUID_GENERATOR.lock().unwrap().gen(),
             content: NodeContent::Comment(comment.clone()),
         }
     }
 
     fn new_text(text: &String) -> Node {
         Node {
-            uuid: gen_nanoid(),
+            uuid: UUID_GENERATOR.lock().unwrap().gen(),
             content: NodeContent::TextNode(text.clone()),
         }
     }
@@ -112,7 +112,7 @@ impl Node {
             children.push(Node::new_from_node(child));
         }
         Node {
-            uuid: gen_nanoid(),
+            uuid: UUID_GENERATOR.lock().unwrap().gen(),
             content: NodeContent::Element(Element::new_from_raw(elm.clone(), children)),
         }
     }

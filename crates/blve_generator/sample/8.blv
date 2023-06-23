@@ -1,9 +1,0 @@
-html:
-  <div>
-    <div id="aaa" :if="boolVal1">AAA</div>
-    <div id="bbb" :if="boolVal2">BBB</div>
-    <div id="ccc" >CCC</div>
-  </div>
-script:
-  let boolVal1 = true
-  let boolVal2 = true

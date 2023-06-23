@@ -18,7 +18,7 @@ use crate::{
     },
 };
 
-use super::utils::{append_v_to_vars, gen_nanoid};
+use super::utils::{append_v_to_vars, UUID_GENERATOR};
 
 // TODO:dep_vars の使い方を再考する
 // RCを使用して、子から親のmutableな変数を参照できるようにする可能性も視野に入れる
@@ -252,7 +252,7 @@ fn set_id_for_needed_elm(element: &mut Element, needed_ids: &mut Vec<NeededIdNam
         };
         id
     } else {
-        let new_id = gen_nanoid();
+        let new_id = UUID_GENERATOR.lock().unwrap().gen();
         element
             .attributes
             .insert("id".to_string(), Some(new_id.clone()));
