@@ -77,6 +77,7 @@ pub struct IfBlockInfo {
     pub elm: Node,
     pub ref_text_node_id: Option<String>,
     pub condition: String,
+    pub condition_dep_vars: Vec<String>,
     pub ctx: Vec<String>,
     pub if_block_id: String,
 }

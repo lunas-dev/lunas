@@ -188,6 +188,10 @@ pub fn check_html_elms(
                                 true => Some(nanoid!()),
                                 false => None,
                             };
+                            let (cond, dep_vars) = append_v_to_vars(
+                                remove_statement.condition.as_str(),
+                                &varibale_names,
+                            );
                             if_block_info.push(IfBlockInfo {
                                 parent_id,
                                 target_if_blk_id: remove_statement.child_uuid.clone(),
@@ -195,7 +199,8 @@ pub fn check_html_elms(
                                 target_anchor_id,
                                 elm,
                                 ref_text_node_id,
-                                condition: remove_statement.condition.clone(),
+                                condition: cond,
+                                condition_dep_vars: dep_vars,
                                 ctx: ctx_array.clone(),
                                 if_block_id: remove_statement.block_id.clone(),
                             });

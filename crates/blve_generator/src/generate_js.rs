@@ -8,7 +8,7 @@ use crate::{
         },
         transform_targets::ElmAndReactiveInfo,
     },
-    transformers::{html_utils::check_html_elms, js_utils::analyze_js, utils::append_v_to_vars},
+    transformers::{html_utils::check_html_elms, js_utils::analyze_js},
 };
 
 pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> Result<(String, Option<String>), String> {
@@ -48,7 +48,7 @@ pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> Result<(String, Option
     let mut codes = vec![js_output, html_insert, ref_getter_expression];
     codes.extend(create_anchor_statements);
     codes.extend(event_listener_codes);
-    let render_if = gen_render_if_statements(&if_block_info, &variable_names);
+    let render_if = gen_render_if_statements(&if_block_info);
     codes.extend(render_if);
     let update_func_code = gen_update_func_statement(elm_and_var_relation, variables);
     codes.push(update_func_code);
@@ -247,10 +247,7 @@ fn gen_create_anchor_statements(if_block_info: &Vec<IfBlockInfo>) -> Vec<String>
     create_anchor_statements
 }
 
-fn gen_render_if_statements(
-    if_block_info: &Vec<IfBlockInfo>,
-    variable_names: &Vec<String>,
-) -> Vec<String> {
+fn gen_render_if_statements(if_block_info: &Vec<IfBlockInfo>) -> Vec<String> {
     let mut render_if = vec![];
 
     for if_block in if_block_info {
@@ -279,7 +276,7 @@ fn gen_render_if_statements(
                 format!("{}Ref.insertBefore({}, null);", if_block.parent_id, name)
             }
         };
-        // TODO:
+        // TODO: 一連の処理を関数にまとめる
         let js_gen_elm_code = js_gen_elm_code_arr
             .iter()
             .map(|c| create_indent(c))
@@ -294,8 +291,7 @@ fn gen_render_if_statements(
             js_gen_elm_code,
             create_indent(insert_elm.as_str())
         ));
-        let (cond, _) = append_v_to_vars(&if_block.condition, &variable_names);
-        render_if.push(format!("{} && render{}()", cond, name));
+        render_if.push(format!("{} && render{}()", if_block.condition, name));
     }
     render_if
 }
