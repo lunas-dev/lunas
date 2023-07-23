@@ -20,7 +20,7 @@ pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> Result<(String, Option
 
     let mut elm_and_var_relation = vec![];
     let mut action_and_target = vec![];
-    let mut if_block_info = vec![];
+    let mut if_blocks_info = vec![];
 
     let mut new_node = Node::new_from_dom(&blocks.detailed_language_blocks.dom)?;
 
@@ -33,7 +33,7 @@ pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> Result<(String, Option
         &mut action_and_target,
         None,
         &mut vec![],
-        &mut if_block_info,
+        &mut if_blocks_info,
         &vec![],
     )?;
 
@@ -42,15 +42,31 @@ pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> Result<(String, Option
     // Generate JavaScript
     let html_insert = format!("elm.innerHTML = `{}`;", html_str);
 
-    let create_anchor_statements = gen_create_anchor_statements(&if_block_info);
+    let create_anchor_statements = gen_create_anchor_statements(&if_blocks_info);
     let ref_getter_expression = gen_ref_getter_from_needed_ids(needed_id);
     let event_listener_codes = create_event_listener(action_and_target);
     let mut codes = vec![js_output, html_insert, ref_getter_expression];
+
+    match if_blocks_info.len() > 0 {
+        true => {
+            let mut decl = "let ".to_string();
+            for (index, if_block_info) in if_blocks_info.iter().enumerate() {
+                decl.push_str(format!("{}Ref", if_block_info.if_block_id).as_str());
+                if index != if_blocks_info.len() - 1 {
+                    decl.push_str(", ");
+                }
+            }
+            codes.push(decl);
+        }
+        false => {}
+    }
+
     codes.extend(create_anchor_statements);
     codes.extend(event_listener_codes);
-    let render_if = gen_render_if_statements(&if_block_info);
+    let render_if = gen_render_if_statements(&if_blocks_info);
     codes.extend(render_if);
-    let update_func_code = gen_update_func_statement(elm_and_var_relation, variables);
+    let update_func_code =
+        gen_update_func_statement(elm_and_var_relation, variables, if_blocks_info);
     codes.push(update_func_code);
     let full_code = gen_full_code(codes);
     let css_code = blocks.detailed_language_blocks.css.clone();
@@ -70,9 +86,9 @@ fn gen_full_code(codes: Vec<String>) -> String {
 import {{ reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText,replaceAttr,insertEmpty }} from 'blve/dist/runtime'
 export default function(elm) {{
     const refs = [0, false, null];
-{code}
+{}
 }}"#,
-        code = code
+        code
     )
 }
 
@@ -147,6 +163,7 @@ fn create_event_listener(actions_and_targets: Vec<ActionAndTarget>) -> Vec<Strin
 fn gen_update_func_statement(
     elm_and_variable_relations: Vec<ElmAndReactiveInfo>,
     variable_name_and_assigned_numbers: Vec<VariableNameAndAssignedNumber>,
+    if_blocks_info: Vec<IfBlockInfo>,
 ) -> String {
     let mut replace_statements = vec![];
     for elm_and_variable_relation in elm_and_variable_relations {
@@ -199,6 +216,33 @@ fn gen_update_func_statement(
         }
     }
 
+    for if_block_info in if_blocks_info {
+        let dep_vars = if_block_info.condition_dep_vars;
+
+        // TODO: データバインディングと同じコードを使っているので共通化する
+        let dep_vars_assined_numbers = variable_name_and_assigned_numbers
+            .iter()
+            .filter(|v| {
+                dep_vars
+                    .iter()
+                    .map(|d| *d == v.name)
+                    .collect::<Vec<bool>>()
+                    .contains(&true)
+            })
+            .map(|v| v.assignment)
+            .collect::<Vec<u32>>();
+
+        let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
+
+        replace_statements.push(format!(
+            "refs[0] & {} && {} ? {} : {}",
+            combined_number,
+            if_block_info.condition,
+            format!("render{}Elm()", &if_block_info.if_block_id),
+            format!("{}Ref.remove()", &if_block_info.if_block_id)
+        ));
+    }
+
     let code = replace_statements
         .iter()
         .map(|c| create_indent(c))
@@ -212,20 +256,6 @@ fn gen_update_func_statement(
         code = code
     );
 
-    result
-}
-
-/// Returns a binary number that is the result of ORing all the numbers in the argument.
-/// ```
-/// let numbers = vec![0b0001, 0b0010, 0b0100];
-/// let result = get_combined_binary_number(numbers);
-/// assert_eq!(result, 0b0111);
-/// ```
-fn get_combined_binary_number(numbers: Vec<u32>) -> u32 {
-    let mut result = 0;
-    for (_, &value) in numbers.iter().enumerate() {
-        result |= value;
-    }
     result
 }
 
@@ -283,15 +313,29 @@ fn gen_render_if_statements(if_block_info: &Vec<IfBlockInfo>) -> Vec<String> {
             .collect::<Vec<String>>()
             .join("\n");
         render_if.push(format!(
-            r#"const render{} = () => {{
+            r#"const render{}Elm = () => {{
 {}
 {}
 }}"#,
-            name,
+            &if_block.if_block_id,
             js_gen_elm_code,
             create_indent(insert_elm.as_str())
         ));
         render_if.push(format!("{} && render{}()", if_block.condition, name));
     }
     render_if
+}
+
+/// Returns a binary number that is the result of ORing all the numbers in the argument.
+/// ```
+/// let numbers = vec![0b0001, 0b0010, 0b0100];
+/// let result = get_combined_binary_number(numbers);
+/// assert_eq!(result, 0b0111);
+/// ```
+fn get_combined_binary_number(numbers: Vec<u32>) -> u32 {
+    let mut result = 0;
+    for (_, &value) in numbers.iter().enumerate() {
+        result |= value;
+    }
+    result
 }

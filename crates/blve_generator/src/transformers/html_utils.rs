@@ -30,7 +30,7 @@ pub fn check_html_elms(
     actions_and_targets: &mut Vec<ActionAndTarget>,
     parent_uuid: Option<&String>,
     html_manipulators: &mut Vec<HtmlManipulator>,
-    if_block_info: &mut Vec<IfBlockInfo>,
+    if_blocks_info: &mut Vec<IfBlockInfo>,
     if_blk_ctx: &Vec<String>,
 ) -> Result<(), String> {
     match &mut node.content {
@@ -161,7 +161,7 @@ pub fn check_html_elms(
                     actions_and_targets,
                     Some(&node.uuid),
                     html_manipulators,
-                    if_block_info,
+                    if_blocks_info,
                     &ctx_array,
                 )?;
             }
@@ -192,7 +192,7 @@ pub fn check_html_elms(
                                 remove_statement.condition.as_str(),
                                 &varibale_names,
                             );
-                            if_block_info.push(IfBlockInfo {
+                            if_blocks_info.push(IfBlockInfo {
                                 parent_id,
                                 target_if_blk_id: remove_statement.child_uuid.clone(),
                                 distance,
