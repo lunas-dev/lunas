@@ -76,13 +76,19 @@ export default function(elm) {{
     )
 }
 
+// TODO: インデントの種類を入力によって変えられるようにする
 fn create_indent(string: &str) -> String {
     let mut output = "".to_string();
     let indent = "    ";
     for line in string.lines() {
-        output.push_str(indent);
-        output.push_str(line);
-        output.push_str("\n");
+        match line == "" {
+            true => output.push_str("\n"),
+            false => {
+                output.push_str(indent);
+                output.push_str(line);
+                output.push_str("\n");
+            }
+        }
     }
     output
 }

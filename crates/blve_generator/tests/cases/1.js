@@ -27,9 +27,9 @@ export default function(elm) {
 
     refs[2] = genUpdateFunc(() => {
         refs[0] & 1 && replaceText(`${escapeHtml(count.v)}`, EU$ACyJdPgqXwgTtZFQdmRef);
-    
+
         refs[0] & 2 && replaceText(`${escapeHtml(interval.v == null ? "start" : "clear")}`, bmDvolUlQvqeLETyLNwHtRef);
-    
+
     });
 
 }

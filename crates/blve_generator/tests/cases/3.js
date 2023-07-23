@@ -20,9 +20,9 @@ export default function(elm) {
 
     refs[2] = genUpdateFunc(() => {
         refs[0]  & 1 && replaceAttr("value", balue.v, mSZVkKzedMphuVkGNIHeFRef);
-    
+
         refs[0] & 1 && replaceText(`${escapeHtml(balue.v)}`, tzPQlyiTuzVvo_BLFwCqVRef);
-    
+
     });
 
 }

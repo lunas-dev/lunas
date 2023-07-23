@@ -17,9 +17,9 @@ export default function(elm) {
 
     refs[2] = genUpdateFunc(() => {
         refs[0]  & 1 && replaceAttr("value", inputValue.v, hyDvUFpBXTawervJGaTteRef);
-    
+
         refs[0] & 1 && replaceText(`inputValue: ${escapeHtml(inputValue.v)}`, Lnd_NTiIdUuISofwdrcfgRef);
-    
+
     });
 
 }

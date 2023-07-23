@@ -25,7 +25,7 @@ export default function(elm) {
 
     refs[2] = genUpdateFunc(() => {
         refs[0]  & 1 && replaceAttr("style", `color : ${ color.v } `, hNXqc_j$VSr_JHwwmnANeRef);
-    
+
     });
 
 }
