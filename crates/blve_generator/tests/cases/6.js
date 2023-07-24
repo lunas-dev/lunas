@@ -32,7 +32,7 @@ export default function(elm) {
 
     }
 
-    boolVal1.v && renderxiwrLHNUBjfkDxkfdIQ$NRef()
+    boolVal1.v && renderxiwrLHNUBjfkDxkfdIQ$NElm()
 
     const renderUpWwfinXGojyvLQDmgwQCElm = () => {
         UpWwfinXGojyvLQDmgwQCRef = document.createElement("div");
@@ -43,7 +43,7 @@ export default function(elm) {
 
     }
 
-    boolVal2.v && renderUpWwfinXGojyvLQDmgwQCRef()
+    boolVal2.v && renderUpWwfinXGojyvLQDmgwQCElm()
 
     const renderoGwPtxGItNWUyA$$KJZElElm = () => {
         oGwPtxGItNWUyA$$KJZElRef = document.createElement("div");
@@ -54,7 +54,7 @@ export default function(elm) {
 
     }
 
-    boolVal3.v && renderoGwPtxGItNWUyA$$KJZElRef()
+    boolVal3.v && renderoGwPtxGItNWUyA$$KJZElElm()
 
     const renderYPh$qJ_RSkVmLFgPMMbiBElm = () => {
         YPh$qJ_RSkVmLFgPMMbiBRef = document.createElement("div");
@@ -65,7 +65,7 @@ export default function(elm) {
 
     }
 
-    boolVal4.v && renderYPh$qJ_RSkVmLFgPMMbiBRef()
+    boolVal4.v && renderYPh$qJ_RSkVmLFgPMMbiBElm()
 
     const renderDzPSZCXJdOHevZtlQpt$zElm = () => {
         DzPSZCXJdOHevZtlQpt$zRef = document.createElement("div");
@@ -76,7 +76,7 @@ export default function(elm) {
 
     }
 
-    boolVal5.v && renderDzPSZCXJdOHevZtlQpt$zRef()
+    boolVal5.v && renderDzPSZCXJdOHevZtlQpt$zElm()
 
     const rendertCkBhMlGzZGJPAQYuYWBUElm = () => {
         tCkBhMlGzZGJPAQYuYWBURef = document.createElement("div");
@@ -87,7 +87,7 @@ export default function(elm) {
 
     }
 
-    boolVal6.v && rendertCkBhMlGzZGJPAQYuYWBURef()
+    boolVal6.v && rendertCkBhMlGzZGJPAQYuYWBUElm()
 
     refs[2] = genUpdateFunc(() => {
         refs[0] & 1 && boolVal1.v ? renderxiwrLHNUBjfkDxkfdIQ$NElm() : xiwrLHNUBjfkDxkfdIQ$NRef.remove()

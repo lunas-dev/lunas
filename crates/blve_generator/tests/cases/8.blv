@@ -2,12 +2,12 @@ html:
   <div>
     <div>
       <div :if="boolVal1">AAA</div>
-      <div :if="boolVal2">AAA</div>
-      <div :if="boolVal3">AAA</div>
-      <div>AAA</div>
-      <div :if="boolVal4">AAA</div>
-      <div :if="boolVal5">AAA</div>
-      <div :if="boolVal6">AAA</div>
+      <div :if="boolVal2">BBB</div>
+      <div :if="boolVal3">CCC</div>
+      <div>Static</div>
+      <div :if="boolVal4">DDD</div>
+      <div :if="boolVal5">EEE</div>
+      <div :if="boolVal6">FFF</div>
     </div>
     <button @click="toggle">toggle</button>
   </div>

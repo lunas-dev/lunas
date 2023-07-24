@@ -17,7 +17,7 @@ export default function(elm) {
       boolVal6.v = !boolVal6.v
     }
 
-    elm.innerHTML = `<div><div id="bfBi_AdyQbxpmGujhPyNi"><div id="nnXlXLNTzhEjOjH_mLaPH">AAA</div></div><button id="VOq_FowHMBMXHXB_YL_wi">toggle</button></div>`;
+    elm.innerHTML = `<div><div id="bfBi_AdyQbxpmGujhPyNi"><div id="nnXlXLNTzhEjOjH_mLaPH">Static</div></div><button id="VOq_FowHMBMXHXB_YL_wi">toggle</button></div>`;
 
     const [bfBi_AdyQbxpmGujhPyNiRef,nnXlXLNTzhEjOjH_mLaPHRef,VOq_FowHMBMXHXB_YL_wiRef] = getElmRefs(["bfBi_AdyQbxpmGujhPyNi","nnXlXLNTzhEjOjH_mLaPH","VOq_FowHMBMXHXB_YL_wi"], 7);
 
@@ -42,62 +42,62 @@ export default function(elm) {
 
     }
 
-    boolVal1.v && renderXebjWskhZx__DmYaHSonKRef()
+    boolVal1.v && renderXebjWskhZx__DmYaHSonKElm()
 
     const renderXFXHxGWxitoxuitksqcmvElm = () => {
         XFXHxGWxitoxuitksqcmvRef = document.createElement("div");
 
-        XFXHxGWxitoxuitksqcmvRef.innerHTML = "AAA";
+        XFXHxGWxitoxuitksqcmvRef.innerHTML = "BBB";
 
         bfBi_AdyQbxpmGujhPyNiRef.insertBefore(XFXHxGWxitoxuitksqcmvRef, XFXHxGWxitoxuitksqcmvAnchor);
 
     }
 
-    boolVal2.v && renderXFXHxGWxitoxuitksqcmvRef()
+    boolVal2.v && renderXFXHxGWxitoxuitksqcmvElm()
 
     const renderrdHlle_QDOqISDNfWxtSLElm = () => {
         rdHlle_QDOqISDNfWxtSLRef = document.createElement("div");
 
-        rdHlle_QDOqISDNfWxtSLRef.innerHTML = "AAA";
+        rdHlle_QDOqISDNfWxtSLRef.innerHTML = "CCC";
 
         bfBi_AdyQbxpmGujhPyNiRef.insertBefore(rdHlle_QDOqISDNfWxtSLRef, nnXlXLNTzhEjOjH_mLaPHRef);
 
     }
 
-    boolVal3.v && renderrdHlle_QDOqISDNfWxtSLRef()
+    boolVal3.v && renderrdHlle_QDOqISDNfWxtSLElm()
 
     const renderhoYjNySiVoGuRkSwvEhkyElm = () => {
         hoYjNySiVoGuRkSwvEhkyRef = document.createElement("div");
 
-        hoYjNySiVoGuRkSwvEhkyRef.innerHTML = "AAA";
+        hoYjNySiVoGuRkSwvEhkyRef.innerHTML = "DDD";
 
         bfBi_AdyQbxpmGujhPyNiRef.insertBefore(hoYjNySiVoGuRkSwvEhkyRef, hoYjNySiVoGuRkSwvEhkyAnchor);
 
     }
 
-    boolVal4.v && renderhoYjNySiVoGuRkSwvEhkyRef()
+    boolVal4.v && renderhoYjNySiVoGuRkSwvEhkyElm()
 
     const renderJhejclsYeRUtQjLurAJhYElm = () => {
         JhejclsYeRUtQjLurAJhYRef = document.createElement("div");
 
-        JhejclsYeRUtQjLurAJhYRef.innerHTML = "AAA";
+        JhejclsYeRUtQjLurAJhYRef.innerHTML = "EEE";
 
         bfBi_AdyQbxpmGujhPyNiRef.insertBefore(JhejclsYeRUtQjLurAJhYRef, JhejclsYeRUtQjLurAJhYAnchor);
 
     }
 
-    boolVal5.v && renderJhejclsYeRUtQjLurAJhYRef()
+    boolVal5.v && renderJhejclsYeRUtQjLurAJhYElm()
 
     const renderVzvsqhLIqDZW_OaoRKVcZElm = () => {
         VzvsqhLIqDZW_OaoRKVcZRef = document.createElement("div");
 
-        VzvsqhLIqDZW_OaoRKVcZRef.innerHTML = "AAA";
+        VzvsqhLIqDZW_OaoRKVcZRef.innerHTML = "FFF";
 
         bfBi_AdyQbxpmGujhPyNiRef.insertBefore(VzvsqhLIqDZW_OaoRKVcZRef, null);
 
     }
 
-    boolVal6.v && renderVzvsqhLIqDZW_OaoRKVcZRef()
+    boolVal6.v && renderVzvsqhLIqDZW_OaoRKVcZElm()
 
     refs[2] = genUpdateFunc(() => {
         refs[0] & 1 && boolVal1.v ? renderXebjWskhZx__DmYaHSonKElm() : XebjWskhZx__DmYaHSonKRef.remove()

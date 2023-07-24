@@ -24,7 +24,7 @@ export default function(elm) {
 
     }
 
-    boolVal1.v && renderGamcKWqwrHXbxxZAvKJHHRef()
+    boolVal1.v && renderGamcKWqwrHXbxxZAvKJHHElm()
 
     refs[2] = genUpdateFunc(() => {
         refs[0] & 1 && replaceText(`${escapeHtml(boolVal1.v)}`, AWeMABHBqZCuzpFfcRcCaRef);

@@ -321,7 +321,10 @@ fn gen_render_if_statements(if_block_info: &Vec<IfBlockInfo>) -> Vec<String> {
             js_gen_elm_code,
             create_indent(insert_elm.as_str())
         ));
-        render_if.push(format!("{} && render{}()", if_block.condition, name));
+        render_if.push(format!(
+            "{} && render{}Elm()",
+            if_block.condition, &if_block.if_block_id
+        ));
     }
     render_if
 }
