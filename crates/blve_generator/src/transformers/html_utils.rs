@@ -51,6 +51,7 @@ pub fn check_html_elms(
                     }
                     element.attributes.remove(key);
                 } else if key == ":if" {
+                    // TODO: Add error message for unwrap below
                     let condition = action_value.clone().unwrap();
                     html_manipulators.push(HtmlManipulator {
                         target_uuid: parent_uuid.unwrap().clone(),

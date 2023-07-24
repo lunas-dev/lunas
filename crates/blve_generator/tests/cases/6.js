@@ -13,6 +13,8 @@ export default function(elm) {
 
     const [j_ZjIsPUytBwiDORmGkpqRef,ueDjp_xkuYrIQADTKnNQhRef] = getElmRefs(["j_ZjIsPUytBwiDORmGkpq","ueDjp_xkuYrIQADTKnNQh"], 3);
 
+    let xiwrLHNUBjfkDxkfdIQ$NRef, UpWwfinXGojyvLQDmgwQCRef, oGwPtxGItNWUyA$$KJZElRef, YPh$qJ_RSkVmLFgPMMbiBRef, DzPSZCXJdOHevZtlQpt$zRef, tCkBhMlGzZGJPAQYuYWBURef
+
     const xiwrLHNUBjfkDxkfdIQ$NAnchor = insertEmpty(j_ZjIsPUytBwiDORmGkpqRef,ueDjp_xkuYrIQADTKnNQhRef);
 
     const UpWwfinXGojyvLQDmgwQCAnchor = insertEmpty(j_ZjIsPUytBwiDORmGkpqRef,ueDjp_xkuYrIQADTKnNQhRef);
@@ -22,72 +24,83 @@ export default function(elm) {
     const DzPSZCXJdOHevZtlQpt$zAnchor = insertEmpty(j_ZjIsPUytBwiDORmGkpqRef,null);
 
     const renderxiwrLHNUBjfkDxkfdIQ$NElm = () => {
-        let xiwrLHNUBjfkDxkfdIQ$NElm = document.createElement("div");
+        xiwrLHNUBjfkDxkfdIQ$NRef = document.createElement("div");
 
-        xiwrLHNUBjfkDxkfdIQ$NElm.innerHTML = "AAA";
+        xiwrLHNUBjfkDxkfdIQ$NRef.innerHTML = "AAA";
 
-        j_ZjIsPUytBwiDORmGkpqRef.insertBefore(xiwrLHNUBjfkDxkfdIQ$NElm, xiwrLHNUBjfkDxkfdIQ$NAnchor);
+        j_ZjIsPUytBwiDORmGkpqRef.insertBefore(xiwrLHNUBjfkDxkfdIQ$NRef, xiwrLHNUBjfkDxkfdIQ$NAnchor);
 
     }
 
-    boolVal1.v && renderxiwrLHNUBjfkDxkfdIQ$NElm()
+    boolVal1.v && renderxiwrLHNUBjfkDxkfdIQ$NRef()
 
     const renderUpWwfinXGojyvLQDmgwQCElm = () => {
-        let UpWwfinXGojyvLQDmgwQCElm = document.createElement("div");
+        UpWwfinXGojyvLQDmgwQCRef = document.createElement("div");
 
-        UpWwfinXGojyvLQDmgwQCElm.innerHTML = "AAA";
+        UpWwfinXGojyvLQDmgwQCRef.innerHTML = "AAA";
 
-        j_ZjIsPUytBwiDORmGkpqRef.insertBefore(UpWwfinXGojyvLQDmgwQCElm, UpWwfinXGojyvLQDmgwQCAnchor);
+        j_ZjIsPUytBwiDORmGkpqRef.insertBefore(UpWwfinXGojyvLQDmgwQCRef, UpWwfinXGojyvLQDmgwQCAnchor);
 
     }
 
-    boolVal2.v && renderUpWwfinXGojyvLQDmgwQCElm()
+    boolVal2.v && renderUpWwfinXGojyvLQDmgwQCRef()
 
     const renderoGwPtxGItNWUyA$$KJZElElm = () => {
-        let oGwPtxGItNWUyA$$KJZElElm = document.createElement("div");
+        oGwPtxGItNWUyA$$KJZElRef = document.createElement("div");
 
-        oGwPtxGItNWUyA$$KJZElElm.innerHTML = "AAA";
+        oGwPtxGItNWUyA$$KJZElRef.innerHTML = "AAA";
 
-        j_ZjIsPUytBwiDORmGkpqRef.insertBefore(oGwPtxGItNWUyA$$KJZElElm, ueDjp_xkuYrIQADTKnNQhRef);
+        j_ZjIsPUytBwiDORmGkpqRef.insertBefore(oGwPtxGItNWUyA$$KJZElRef, ueDjp_xkuYrIQADTKnNQhRef);
 
     }
 
-    boolVal3.v && renderoGwPtxGItNWUyA$$KJZElElm()
+    boolVal3.v && renderoGwPtxGItNWUyA$$KJZElRef()
 
     const renderYPh$qJ_RSkVmLFgPMMbiBElm = () => {
-        let YPh$qJ_RSkVmLFgPMMbiBElm = document.createElement("div");
+        YPh$qJ_RSkVmLFgPMMbiBRef = document.createElement("div");
 
-        YPh$qJ_RSkVmLFgPMMbiBElm.innerHTML = "AAA";
+        YPh$qJ_RSkVmLFgPMMbiBRef.innerHTML = "AAA";
 
-        j_ZjIsPUytBwiDORmGkpqRef.insertBefore(YPh$qJ_RSkVmLFgPMMbiBElm, YPh$qJ_RSkVmLFgPMMbiBAnchor);
+        j_ZjIsPUytBwiDORmGkpqRef.insertBefore(YPh$qJ_RSkVmLFgPMMbiBRef, YPh$qJ_RSkVmLFgPMMbiBAnchor);
 
     }
 
-    boolVal4.v && renderYPh$qJ_RSkVmLFgPMMbiBElm()
+    boolVal4.v && renderYPh$qJ_RSkVmLFgPMMbiBRef()
 
     const renderDzPSZCXJdOHevZtlQpt$zElm = () => {
-        let DzPSZCXJdOHevZtlQpt$zElm = document.createElement("div");
+        DzPSZCXJdOHevZtlQpt$zRef = document.createElement("div");
 
-        DzPSZCXJdOHevZtlQpt$zElm.innerHTML = "AAA";
+        DzPSZCXJdOHevZtlQpt$zRef.innerHTML = "AAA";
 
-        j_ZjIsPUytBwiDORmGkpqRef.insertBefore(DzPSZCXJdOHevZtlQpt$zElm, DzPSZCXJdOHevZtlQpt$zAnchor);
+        j_ZjIsPUytBwiDORmGkpqRef.insertBefore(DzPSZCXJdOHevZtlQpt$zRef, DzPSZCXJdOHevZtlQpt$zAnchor);
 
     }
 
-    boolVal5.v && renderDzPSZCXJdOHevZtlQpt$zElm()
+    boolVal5.v && renderDzPSZCXJdOHevZtlQpt$zRef()
 
     const rendertCkBhMlGzZGJPAQYuYWBUElm = () => {
-        let tCkBhMlGzZGJPAQYuYWBUElm = document.createElement("div");
+        tCkBhMlGzZGJPAQYuYWBURef = document.createElement("div");
 
-        tCkBhMlGzZGJPAQYuYWBUElm.innerHTML = "AAA";
+        tCkBhMlGzZGJPAQYuYWBURef.innerHTML = "AAA";
 
-        j_ZjIsPUytBwiDORmGkpqRef.insertBefore(tCkBhMlGzZGJPAQYuYWBUElm, null);
+        j_ZjIsPUytBwiDORmGkpqRef.insertBefore(tCkBhMlGzZGJPAQYuYWBURef, null);
 
     }
 
-    boolVal6.v && rendertCkBhMlGzZGJPAQYuYWBUElm()
+    boolVal6.v && rendertCkBhMlGzZGJPAQYuYWBURef()
 
     refs[2] = genUpdateFunc(() => {
+        refs[0] & 1 && boolVal1.v ? renderxiwrLHNUBjfkDxkfdIQ$NElm() : xiwrLHNUBjfkDxkfdIQ$NRef.remove()
+
+        refs[0] & 2 && boolVal2.v ? renderUpWwfinXGojyvLQDmgwQCElm() : UpWwfinXGojyvLQDmgwQCRef.remove()
+
+        refs[0] & 4 && boolVal3.v ? renderoGwPtxGItNWUyA$$KJZElElm() : oGwPtxGItNWUyA$$KJZElRef.remove()
+
+        refs[0] & 8 && boolVal4.v ? renderYPh$qJ_RSkVmLFgPMMbiBElm() : YPh$qJ_RSkVmLFgPMMbiBRef.remove()
+
+        refs[0] & 16 && boolVal5.v ? renderDzPSZCXJdOHevZtlQpt$zElm() : DzPSZCXJdOHevZtlQpt$zRef.remove()
+
+        refs[0] & 32 && boolVal6.v ? rendertCkBhMlGzZGJPAQYuYWBUElm() : tCkBhMlGzZGJPAQYuYWBURef.remove()
 
     });
 
