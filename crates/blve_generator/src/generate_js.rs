@@ -11,7 +11,20 @@ use crate::{
     transformers::{html_utils::check_html_elms, js_utils::analyze_js},
 };
 
-pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> Result<(String, Option<String>), String> {
+pub fn generate_js_from_blocks(
+    blocks: &DetailedBlock,
+    no_export: Option<bool>,
+    runtime_path: Option<String>,
+) -> Result<(String, Option<String>), String> {
+    let no_export = match no_export.is_none() {
+        true => false,
+        false => no_export.unwrap(),
+    };
+    let runtime_path = match runtime_path.is_none() {
+        true => "blve/dist/runtime".to_string(),
+        false => runtime_path.unwrap(),
+    };
+
     // Analyze JavaScript
     let (variables, variable_names, js_output) = analyze_js(blocks);
 
@@ -68,13 +81,19 @@ pub fn generate_js_from_blocks(blocks: &DetailedBlock) -> Result<(String, Option
     let update_func_code =
         gen_update_func_statement(elm_and_var_relation, variables, if_blocks_info);
     codes.push(update_func_code);
-    let full_code = gen_full_code(codes);
+    let full_code = gen_full_code(codes, no_export, runtime_path);
     let css_code = blocks.detailed_language_blocks.css.clone();
 
     Ok((full_code, css_code))
 }
 
-fn gen_full_code(codes: Vec<String>) -> String {
+fn gen_full_code(codes: Vec<String>, no_export: bool, runtime_path: String) -> String {
+    let func_decl = if no_export {
+        "const App = ".to_string()
+    } else {
+        "export default ".to_string()
+    };
+
     // codesにcreate_indentを適用して、\nでjoinする -> code
     let code = codes
         .iter()
@@ -83,12 +102,12 @@ fn gen_full_code(codes: Vec<String>) -> String {
         .join("\n");
     format!(
         r#"
-import {{ reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText,replaceAttr,insertEmpty }} from 'blve/dist/runtime'
-export default function(elm) {{
+import {{ reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText,replaceAttr,insertEmpty }} from '{}'
+{}function(elm) {{
     const refs = [0, false, null];
 {}
 }}"#,
-        code
+        code, runtime_path, func_decl
     )
 }
 
