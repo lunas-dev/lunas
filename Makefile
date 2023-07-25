@@ -8,4 +8,4 @@ build:
 	cp -r ./npm-pkg/src/wasm-compiler/* ./npm-pkg/dist/wasm-compiler/
 
 build-web:
-	cd ./crates/blve_compiler/ && wasm-pack build --target web && open ./
+	cd ./crates/blve_compiler/ && wasm-pack build --target web
