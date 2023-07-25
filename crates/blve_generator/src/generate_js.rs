@@ -107,7 +107,7 @@ import {{ reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replac
     const refs = [0, false, null];
 {}
 }}"#,
-        code, runtime_path, func_decl
+        runtime_path, func_decl, code,
     )
 }
 
