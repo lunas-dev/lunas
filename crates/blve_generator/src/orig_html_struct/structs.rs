@@ -82,7 +82,7 @@ impl Element {
                 child_str.push_str(child.to_string().as_str());
             }
             js_code.push(format!(
-                "{}Ref.innerHTML = \"{}\";\n",
+                "{}Ref.innerHTML = `{}`;\n",
                 if_block_name, child_str
             ));
         }
