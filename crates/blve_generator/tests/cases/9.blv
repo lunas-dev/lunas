@@ -1,0 +1,11 @@
+html:
+  <div>
+    <div :if="showBlock">
+      THIS IS IF BLOCK1
+    </div>
+  </div>
+script:
+  let showBlock = true
+  function toggle() {
+    showBlock = !showBlock
+  }

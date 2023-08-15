@@ -18,7 +18,7 @@ export default function(elm) {
     const renderGamcKWqwrHXbxxZAvKJHHElm = () => {
         GamcKWqwrHXbxxZAvKJHHRef = document.createElement("div");
 
-        GamcKWqwrHXbxxZAvKJHHRef.innerHTML = "AAA";
+        GamcKWqwrHXbxxZAvKJHHRef.innerHTML = `AAA`;
 
         _forhNDTXhMiXqfFWTKxtRef.insertBefore(GamcKWqwrHXbxxZAvKJHHRef, WUpPtHUBjCrfqyDwDhGzLRef);
 
