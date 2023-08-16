@@ -149,10 +149,6 @@ pub fn check_html_elms(
                 }
             }
 
-            if let Some(if_block_id) = if_block_id {
-                ctx_array.push(if_block_id);
-            }
-
             for child_node in &mut element.children {
                 check_html_elms(
                     varibale_names,
@@ -219,6 +215,24 @@ pub fn check_html_elms(
                     }
                 }
             }
+
+            if let Some(if_block_id) = if_block_id {
+                let attrs = element.attributes.clone();
+
+                if let Some(id) = attrs.get("id") {
+                    if let Some(id) = id {
+                        let id = id.clone();
+                        for needed_id in needed_ids.iter_mut() {
+                            if *needed_id.id_name == id {
+                                needed_id.get_ref = false;
+                            }
+                        }
+                    }
+                }
+
+                ctx_array.push(if_block_id);
+            }
+
             Ok(())
         }
         NodeContent::TextNode(text) => {
@@ -248,6 +262,7 @@ fn set_id_for_needed_elm(element: &mut Element, needed_ids: &mut Vec<NeededIdNam
             needed_ids.push(NeededIdName {
                 id_name: id.clone(),
                 to_delete: false,
+                get_ref: true,
             });
             id.clone()
         };
@@ -260,6 +275,7 @@ fn set_id_for_needed_elm(element: &mut Element, needed_ids: &mut Vec<NeededIdNam
         needed_ids.push(NeededIdName {
             id_name: new_id.clone(),
             to_delete: true,
+            get_ref: true,
         });
         new_id
     }

@@ -22,6 +22,7 @@ pub struct ActionAndTarget {
 #[derive(Debug)]
 pub struct NeededIdName {
     pub id_name: String,
+    pub get_ref: bool,
     pub to_delete: bool,
 }
 

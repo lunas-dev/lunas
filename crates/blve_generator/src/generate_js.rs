@@ -133,6 +133,7 @@ fn gen_ref_getter_from_needed_ids(needed_ids: Vec<NeededIdName>) -> String {
     ref_getter_str.push_str(
         needed_ids
             .iter()
+            .filter(|id: &&NeededIdName| id.get_ref)
             .map(|id| format!("{}Ref", id.id_name))
             .collect::<Vec<String>>()
             .join(",")
@@ -142,6 +143,7 @@ fn gen_ref_getter_from_needed_ids(needed_ids: Vec<NeededIdName>) -> String {
     ref_getter_str.push_str(
         needed_ids
             .iter()
+            .filter(|id: &&NeededIdName| id.get_ref)
             .map(|id| format!("\"{}\"", id.id_name))
             .collect::<Vec<String>>()
             .join(",")
@@ -149,6 +151,7 @@ fn gen_ref_getter_from_needed_ids(needed_ids: Vec<NeededIdName>) -> String {
     );
     let delete_id_bool_map = needed_ids
         .iter()
+        .filter(|id: &&NeededIdName| id.get_ref)
         .map(|id| id.to_delete)
         .collect::<Vec<bool>>();
     let delete_id_map = gen_binary_map_from_bool(delete_id_bool_map);
@@ -254,7 +257,7 @@ fn gen_update_func_statement(
         let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
 
         replace_statements.push(format!(
-            "refs[0] & {} && {} ? {} : {}",
+            "refs[0] & {} && ( {} ? {} : {} )",
             combined_number,
             if_block_info.condition,
             format!("render{}Elm()", &if_block_info.if_block_id),
