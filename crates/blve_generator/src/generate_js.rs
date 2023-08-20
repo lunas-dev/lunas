@@ -98,10 +98,10 @@ fn gen_full_code(codes: Vec<String>, no_export: bool, runtime_path: String) -> S
         .collect::<Vec<String>>()
         .join("\n");
     format!(
-        r#"
-import {{ reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText,replaceAttr,insertEmpty }} from '{}'
+        r#"import {{ reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText,replaceAttr,insertEmpty }} from '{}'
+
 {}function(elm) {{
-    const refs = [0, false, null];
+    const refs = [null, false, 0, 0];
 {}
 }}"#,
         runtime_path, func_decl, code,
