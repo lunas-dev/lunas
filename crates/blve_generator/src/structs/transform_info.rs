@@ -24,6 +24,7 @@ pub struct NeededIdName {
     pub id_name: String,
     pub get_ref: bool,
     pub to_delete: bool,
+    pub node_id: String,
 }
 
 #[derive(Debug)]

@@ -33,6 +33,7 @@ pub fn check_html_elms(
     if_blocks_info: &mut Vec<IfBlockInfo>,
     if_blk_ctx: &Vec<String>,
 ) -> Result<(), String> {
+    let node_id = node.uuid.clone();
     match &mut node.content {
         NodeContent::Element(element) => {
             let mut if_block_id = None;
@@ -41,12 +42,12 @@ pub fn check_html_elms(
                 // if attrs.name starts with "@"
                 if key.starts_with("@") {
                     let action_name = &key[1..];
-                    let id = set_id_for_needed_elm(element, needed_ids);
+                    set_id_for_needed_elm(element, needed_ids, &node_id);
                     if let Some(value) = &&action_value {
                         actions_and_targets.push(ActionAndTarget {
                             action_name: action_name.to_string(),
                             action: EventTarget::new(value.to_string(), varibale_names),
-                            target: id,
+                            target: node_id.clone(),
                         })
                     }
                     element.attributes.remove(key);
@@ -70,7 +71,7 @@ pub fn check_html_elms(
                     if_block_id = Some(node.uuid.clone())
                 } else if key.starts_with("::") {
                     let binding_attr = &key[2..];
-                    let id: String = set_id_for_needed_elm(element, needed_ids);
+                    let id: String = set_id_for_needed_elm(element, needed_ids, &node_id);
                     if let Some(value) = &&action_value {
                         actions_and_targets.push(ActionAndTarget {
                             action_name: "input".to_string(),
@@ -78,7 +79,7 @@ pub fn check_html_elms(
                                 statement: format!("{}.v = event.target.{}", &value, &binding_attr),
                                 arg: "e".to_string(),
                             }),
-                            target: id.clone(),
+                            target: node_id.clone(),
                         });
                         elm_and_var_relation.push(
                             ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(
@@ -101,7 +102,7 @@ pub fn check_html_elms(
                     } else if key == ":textContent" {
                         Err(format!(":textContent is not supported"))?;
                     }
-                    let id: String = set_id_for_needed_elm(element, needed_ids);
+                    let id: String = set_id_for_needed_elm(element, needed_ids, &node_id);
                     let raw_attr_name = &key[1..];
                     let raw_attr_value = action_value.clone();
 
@@ -166,7 +167,7 @@ pub fn check_html_elms(
                 if manip.target_uuid == node.uuid {
                     match &manip.manipulations {
                         HtmlManipulation::RemoveChildForIfStatement(remove_statement) => {
-                            let parent_id = set_id_for_needed_elm(element, needed_ids);
+                            set_id_for_needed_elm(element, needed_ids, &node_id);
                             let (elm, _, distance, idx_of_ref) =
                                 element.remove_child(&remove_statement.child_uuid);
                             let target_anchor_id = if let Some(idx_of_ref) = idx_of_ref {
@@ -177,6 +178,7 @@ pub fn check_html_elms(
                                         _ => panic!("not element"),
                                     },
                                     needed_ids,
+                                    &node_id,
                                 ))
                             } else {
                                 None
@@ -190,7 +192,7 @@ pub fn check_html_elms(
                                 &varibale_names,
                             );
                             if_blocks_info.push(IfBlockInfo {
-                                parent_id,
+                                parent_id: node_id.clone(),
                                 target_if_blk_id: remove_statement.child_uuid.clone(),
                                 distance,
                                 target_anchor_id,
@@ -203,10 +205,10 @@ pub fn check_html_elms(
                             });
                         }
                         HtmlManipulation::SetIdForReactiveContent(set_id) => {
-                            let id = set_id_for_needed_elm(element, needed_ids);
+                            set_id_for_needed_elm(element, needed_ids, &node_id);
                             elm_and_var_relation.push(ElmAndReactiveInfo::ElmAndVariableRelation(
                                 ElmAndVariableContentRelation {
-                                    elm_id: id,
+                                    elm_id: node_id.clone(),
                                     variable_names: set_id.depenent_vars.clone(),
                                     content_of_element: set_id.text.clone(),
                                 },
@@ -254,7 +256,11 @@ pub fn check_html_elms(
     }
 }
 
-fn set_id_for_needed_elm(element: &mut Element, needed_ids: &mut Vec<NeededIdName>) -> String {
+fn set_id_for_needed_elm(
+    element: &mut Element,
+    needed_ids: &mut Vec<NeededIdName>,
+    node_id: &String,
+) -> String {
     if let Some(Some(id)) = element.attributes.get("id") {
         let id = if needed_ids.iter().any(|x| x.id_name == id.clone()) {
             id.clone()
@@ -263,6 +269,7 @@ fn set_id_for_needed_elm(element: &mut Element, needed_ids: &mut Vec<NeededIdNam
                 id_name: id.clone(),
                 to_delete: false,
                 get_ref: true,
+                node_id: node_id.clone(),
             });
             id.clone()
         };
@@ -276,6 +283,7 @@ fn set_id_for_needed_elm(element: &mut Element, needed_ids: &mut Vec<NeededIdNam
             id_name: new_id.clone(),
             to_delete: true,
             get_ref: true,
+            node_id: node_id.clone(),
         });
         new_id
     }

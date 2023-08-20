@@ -60,18 +60,15 @@ pub fn generate_js_from_blocks(
     let event_listener_codes = create_event_listener(action_and_target);
     let mut codes = vec![js_output, html_insert, ref_getter_expression];
 
-    match if_blocks_info.len() > 0 {
-        true => {
-            let mut decl = "let ".to_string();
-            for (index, if_block_info) in if_blocks_info.iter().enumerate() {
-                decl.push_str(format!("{}Ref", if_block_info.if_block_id).as_str());
-                if index != if_blocks_info.len() - 1 {
-                    decl.push_str(", ");
-                }
+    if if_blocks_info.len() > 0 {
+        let mut decl = "let ".to_string();
+        for (index, if_block_info) in if_blocks_info.iter().enumerate() {
+            decl.push_str(format!("{}Ref", if_block_info.if_block_id).as_str());
+            if index != if_blocks_info.len() - 1 {
+                decl.push_str(", ");
             }
-            codes.push(decl);
         }
-        false => {}
+        codes.push(decl);
     }
 
     codes.extend(create_anchor_statements);
@@ -134,7 +131,7 @@ fn gen_ref_getter_from_needed_ids(needed_ids: Vec<NeededIdName>) -> String {
         needed_ids
             .iter()
             .filter(|id: &&NeededIdName| id.get_ref)
-            .map(|id| format!("{}Ref", id.id_name))
+            .map(|id| format!("{}Ref", id.node_id))
             .collect::<Vec<String>>()
             .join(",")
             .as_str(),
@@ -257,11 +254,12 @@ fn gen_update_func_statement(
         let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
 
         replace_statements.push(format!(
-            "refs[0] & {} && ( {} ? {} : {} )",
+            "refs[0] & {} && ( {} ? {} : ({}, {}) )",
             combined_number,
             if_block_info.condition,
             format!("render{}Elm()", &if_block_info.if_block_id),
-            format!("{}Ref.remove()", &if_block_info.if_block_id)
+            format!("{}Ref.remove()", &if_block_info.if_block_id),
+            format!("{}Ref = null", &if_block_info.if_block_id)
         ));
     }
 
