@@ -202,7 +202,7 @@ fn gen_update_func_statement(
                         .collect::<Vec<u32>>();
 
                     replace_statements.push(format!(
-                        "refs[0]  & {:?} && replaceAttr(\"{}\", {}, {}Ref);",
+                        "refs[2]  & {:?} && replaceAttr(\"{}\", {}, {}Ref);",
                         get_combined_binary_number(dep_vars_assined_numbers),
                         c.attribute_key,
                         c.content_of_attr,
@@ -228,7 +228,7 @@ fn gen_update_func_statement(
 
                 let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
                 replace_statements.push(format!(
-                    "refs[0] & {:?} && replaceText(`{}`, {}Ref);",
+                    "refs[2] & {:?} && replaceText(`{}`, {}Ref);",
                     combined_number, elm_and_variable_relation.content_of_element, target_id
                 ));
             }
@@ -254,7 +254,7 @@ fn gen_update_func_statement(
         let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
 
         replace_statements.push(format!(
-            "refs[0] & {} && ( {} ? {} : ({}, {}) )",
+            "refs[2] & {} && ( {} ? {} : ({}, {}) )",
             combined_number,
             if_block_info.condition,
             format!("render{}Elm()", &if_block_info.if_block_id),
@@ -270,7 +270,7 @@ fn gen_update_func_statement(
         .join("\n");
 
     let result = format!(
-        r#"refs[2] = genUpdateFunc(() => {{
+        r#"refs[0] = genUpdateFunc(() => {{
 {code}
 }});"#,
         code = code
