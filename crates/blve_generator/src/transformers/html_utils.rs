@@ -71,7 +71,7 @@ pub fn check_html_elms(
                     if_block_id = Some(node.uuid.clone())
                 } else if key.starts_with("::") {
                     let binding_attr = &key[2..];
-                    let id: String = set_id_for_needed_elm(element, needed_ids, &node_id);
+                    set_id_for_needed_elm(element, needed_ids, &node_id);
                     if let Some(value) = &&action_value {
                         actions_and_targets.push(ActionAndTarget {
                             action_name: "input".to_string(),
@@ -84,7 +84,7 @@ pub fn check_html_elms(
                         elm_and_var_relation.push(
                             ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(
                                 ElmAndReactiveAttributeRelation {
-                                    elm_id: id,
+                                    elm_id: node_id.clone(),
                                     reactive_attr: vec![ReactiveAttr {
                                         attribute_key: binding_attr.to_string(),
                                         content_of_attr: format!("{}.v", value),
@@ -114,7 +114,7 @@ pub fn check_html_elms(
                         Some(rel) => rel,
                         None => {
                             let rel2 = ElmAndReactiveAttributeRelation {
-                                elm_id: id.clone(),
+                                elm_id: node_id.clone(),
                                 reactive_attr: vec![],
                             };
                             elm_and_var_relation
@@ -171,15 +171,17 @@ pub fn check_html_elms(
                             let (elm, _, distance, idx_of_ref) =
                                 element.remove_child(&remove_statement.child_uuid);
                             let target_anchor_id = if let Some(idx_of_ref) = idx_of_ref {
-                                // add id to ref_idx
+                                let node_id =
+                                    &element.children[idx_of_ref as usize - 1].uuid.clone();
                                 Some(set_id_for_needed_elm(
                                     match &mut element.children[idx_of_ref as usize - 1].content {
                                         NodeContent::Element(elm) => elm,
                                         _ => panic!("not element"),
                                     },
                                     needed_ids,
-                                    &node_id,
-                                ))
+                                    node_id,
+                                ));
+                                Some(node_id.clone())
                             } else {
                                 None
                             };

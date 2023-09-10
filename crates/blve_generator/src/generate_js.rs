@@ -49,7 +49,9 @@ pub fn generate_js_from_blocks(
         &mut if_blocks_info,
         &vec![],
     )?;
-
+    
+    println!("{:#?}", new_node);
+    
     let html_str = new_node.to_string();
 
     // Generate JavaScript
@@ -98,7 +100,7 @@ fn gen_full_code(codes: Vec<String>, no_export: bool, runtime_path: String) -> S
         .collect::<Vec<String>>()
         .join("\n");
     format!(
-        r#"import {{ reactiveValue,getElmRefs,addEvListener,genUpdateFunc,escapeHtml,replaceText,replaceAttr,insertEmpty }} from '{}'
+        r#"import {{ reactiveValue, getElmRefs, addEvListener, genUpdateFunc, escapeHtml, replaceText, replaceAttr, insertEmpty }} from '{}'
 
 {}function(elm) {{
     const refs = [null, false, 0, 0];
@@ -187,8 +189,8 @@ fn gen_update_func_statement(
     let mut replace_statements = vec![];
     for elm_and_variable_relation in elm_and_variable_relations {
         match elm_and_variable_relation {
-            ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(a) => {
-                for c in a.reactive_attr {
+            ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(elm_and_variable_relation) => {
+                for c in elm_and_variable_relation.reactive_attr {
                     let dep_vars_assined_numbers = variable_name_and_assigned_numbers
                         .iter()
                         .filter(|v| {
@@ -206,7 +208,7 @@ fn gen_update_func_statement(
                         get_combined_binary_number(dep_vars_assined_numbers),
                         c.attribute_key,
                         c.content_of_attr,
-                        a.elm_id
+                        elm_and_variable_relation.elm_id
                     ));
                 }
             }
