@@ -80,6 +80,9 @@ pub struct IfBlockInfo {
     pub ref_text_node_id: Option<String>,
     pub condition: String,
     pub condition_dep_vars: Vec<String>,
+    // TODO: ctxを削除する
     pub ctx: Vec<String>,
     pub if_block_id: String,
+    pub blk_num: u64,
+    pub ctx_num: u64,
 }

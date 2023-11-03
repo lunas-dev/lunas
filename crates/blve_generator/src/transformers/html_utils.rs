@@ -81,6 +81,14 @@ pub fn check_html_elms(
                             }),
                             target: node_id.clone(),
                         });
+                        // TODO:ctx_numの計算の共通化
+                        let mut ctx_num: u64 = 0;
+                        for (index, if_blk) in if_blocks_info.iter().enumerate() {
+                            if ctx_array.contains(&if_blk.parent_id) {
+                                let blk_num: u64 = (2 as u64).pow(index as u32);
+                                ctx_num = ctx_num | blk_num;
+                            }
+                        }
                         elm_and_var_relation.push(
                             ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(
                                 ElmAndReactiveAttributeRelation {
@@ -90,6 +98,7 @@ pub fn check_html_elms(
                                         content_of_attr: format!("{}.v", value),
                                         variable_names: vec![value.clone()],
                                     }],
+                                    ctx_num,
                                 },
                             ),
                         );
@@ -113,9 +122,18 @@ pub fn check_html_elms(
                     let reactive_attr_info = match reactive_attr_info {
                         Some(rel) => rel,
                         None => {
+                            // TODO:ctx_numの計算の共通化
+                            let mut ctx_num: u64 = 0;
+                            for (i, if_blk) in if_blocks_info.iter().enumerate() {
+                                if ctx_array.contains(&if_blk.parent_id) {
+                                    let blk_num: u64 = (2 as u64).pow(i as u32);
+                                    ctx_num = ctx_num | blk_num;
+                                }
+                            }
                             let rel2 = ElmAndReactiveAttributeRelation {
                                 elm_id: node_id.clone(),
                                 reactive_attr: vec![],
+                                ctx_num,
                             };
                             elm_and_var_relation
                                 .push(ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(rel2));
@@ -193,6 +211,16 @@ pub fn check_html_elms(
                                 remove_statement.condition.as_str(),
                                 &varibale_names,
                             );
+                            // TODO:ctx_numの計算の共通化
+                            let mut ctx_num: u64 = 0;
+                            for (i, if_blk) in if_blocks_info.iter().enumerate() {
+                                if if_blk_ctx.contains(&if_blk.parent_id) {
+                                    let blk_num: u64 = (2 as u64).pow(i as u32);
+                                    ctx_num = ctx_num | blk_num;
+                                }
+                            }
+                            let blk_num = (2 as u64).pow(if_blocks_info.len() as u32);
+                            ctx_num = ctx_num | blk_num;
                             if_blocks_info.push(IfBlockInfo {
                                 parent_id: node_id.clone(),
                                 target_if_blk_id: remove_statement.child_uuid.clone(),
@@ -202,17 +230,28 @@ pub fn check_html_elms(
                                 ref_text_node_id,
                                 condition: cond,
                                 condition_dep_vars: dep_vars,
-                                ctx: ctx_array.clone(),
+                                ctx: if_blk_ctx.clone(),
                                 if_block_id: remove_statement.block_id.clone(),
+                                blk_num,
+                                ctx_num,
                             });
                         }
                         HtmlManipulation::SetIdForReactiveContent(set_id) => {
                             set_id_for_needed_elm(element, needed_ids, &node_id);
+                            // TODO:ctx_numの計算の共通化
+                            let mut ctx_num: u64 = 0;
+                            for (i, if_blk) in if_blocks_info.iter().enumerate() {
+                                if if_blk_ctx.contains(&if_blk.parent_id) {
+                                    let blk_num: u64 = (2 as u64).pow(i as u32);
+                                    ctx_num = ctx_num | blk_num;
+                                }
+                            }
                             elm_and_var_relation.push(ElmAndReactiveInfo::ElmAndVariableRelation(
                                 ElmAndVariableContentRelation {
                                     elm_id: node_id.clone(),
                                     variable_names: set_id.depenent_vars.clone(),
                                     content_of_element: set_id.text.clone(),
+                                    ctx_num,
                                 },
                             ));
                         }

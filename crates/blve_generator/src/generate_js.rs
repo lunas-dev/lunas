@@ -49,9 +49,9 @@ pub fn generate_js_from_blocks(
         &mut if_blocks_info,
         &vec![],
     )?;
-    
+
     println!("{:#?}", new_node);
-    
+
     let html_str = new_node.to_string();
 
     // Generate JavaScript
@@ -70,6 +70,7 @@ pub fn generate_js_from_blocks(
                 decl.push_str(", ");
             }
         }
+        decl.push_str(";");
         codes.push(decl);
     }
 
@@ -114,14 +115,16 @@ fn gen_full_code(codes: Vec<String>, no_export: bool, runtime_path: String) -> S
 fn create_indent(string: &str) -> String {
     let mut output = "".to_string();
     let indent = "    ";
-    for line in string.lines() {
+    for (i, line) in string.lines().into_iter().enumerate() {
         match line == "" {
-            true => output.push_str("\n"),
+            true => {}
             false => {
                 output.push_str(indent);
                 output.push_str(line);
-                output.push_str("\n");
             }
+        }
+        if i != string.lines().into_iter().count() - 1 {
+            output.push_str("\n");
         }
     }
     output
@@ -187,55 +190,6 @@ fn gen_update_func_statement(
     if_blocks_info: Vec<IfBlockInfo>,
 ) -> String {
     let mut replace_statements = vec![];
-    for elm_and_variable_relation in elm_and_variable_relations {
-        match elm_and_variable_relation {
-            ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(elm_and_variable_relation) => {
-                for c in elm_and_variable_relation.reactive_attr {
-                    let dep_vars_assined_numbers = variable_name_and_assigned_numbers
-                        .iter()
-                        .filter(|v| {
-                            c.variable_names
-                                .iter()
-                                .map(|d| *d == v.name)
-                                .collect::<Vec<bool>>()
-                                .contains(&true)
-                        })
-                        .map(|v| v.assignment)
-                        .collect::<Vec<u32>>();
-
-                    replace_statements.push(format!(
-                        "refs[2]  & {:?} && replaceAttr(\"{}\", {}, {}Ref);",
-                        get_combined_binary_number(dep_vars_assined_numbers),
-                        c.attribute_key,
-                        c.content_of_attr,
-                        elm_and_variable_relation.elm_id
-                    ));
-                }
-            }
-            ElmAndReactiveInfo::ElmAndVariableRelation(elm_and_variable_relation) => {
-                let depending_variables = elm_and_variable_relation.variable_names;
-                let target_id = elm_and_variable_relation.elm_id;
-
-                let dep_vars_assined_numbers = variable_name_and_assigned_numbers
-                    .iter()
-                    .filter(|v| {
-                        depending_variables
-                            .iter()
-                            .map(|d| *d == v.name)
-                            .collect::<Vec<bool>>()
-                            .contains(&true)
-                    })
-                    .map(|v| v.assignment)
-                    .collect::<Vec<u32>>();
-
-                let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
-                replace_statements.push(format!(
-                    "refs[2] & {:?} && replaceText(`{}`, {}Ref);",
-                    combined_number, elm_and_variable_relation.content_of_element, target_id
-                ));
-            }
-        }
-    }
 
     for if_block_info in if_blocks_info {
         let dep_vars = if_block_info.condition_dep_vars;
@@ -255,14 +209,99 @@ fn gen_update_func_statement(
 
         let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
 
+        // if_block_info.ctx_num
+        println!("if_block_info.ctx_num: {}", &if_block_info.ctx_num);
+        // print array of string
+        println!("if_block_info.ctx: {:?}", &if_block_info.ctx);
+
+        let if_block_parent_condition = if dep_vars.len() == 0 {
+            "".to_string()
+        } else {
+            format!("refs[3] & {} && ", combined_number)
+        };
+
         replace_statements.push(format!(
-            "refs[2] & {} && ( {} ? {} : ({}, {}) )",
+            "{}refs[2] & {} && ( {} ? {} : ({}, {}, {}) );",
+            if_block_parent_condition,
             combined_number,
             if_block_info.condition,
             format!("render{}Elm()", &if_block_info.if_block_id),
             format!("{}Ref.remove()", &if_block_info.if_block_id),
-            format!("{}Ref = null", &if_block_info.if_block_id)
+            format!("{}Ref = null", &if_block_info.if_block_id),
+            format!("refs[3] ^= {}", &if_block_info.blk_num),
         ));
+    }
+
+    for elm_and_variable_relation in elm_and_variable_relations {
+        match elm_and_variable_relation {
+            ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(elm_and_attr_relation) => {
+                for c in elm_and_attr_relation.reactive_attr {
+                    let dep_vars_assined_numbers = variable_name_and_assigned_numbers
+                        .iter()
+                        .filter(|v| {
+                            c.variable_names
+                                .iter()
+                                .map(|d| *d == v.name)
+                                .collect::<Vec<bool>>()
+                                .contains(&true)
+                        })
+                        .map(|v| v.assignment)
+                        .collect::<Vec<u32>>();
+
+                    let x = if elm_and_attr_relation.ctx_num != 0 {
+                        format!(
+                            "(!((refs[3] & {0}) ^ {0})) && ",
+                            elm_and_attr_relation.ctx_num
+                        )
+                    } else {
+                        "".to_string()
+                    };
+
+                    replace_statements.push(format!(
+                        "{}refs[2] & {:?} && replaceAttr(\"{}\", {}, {}Ref);",
+                        x,
+                        get_combined_binary_number(dep_vars_assined_numbers),
+                        c.attribute_key,
+                        c.content_of_attr,
+                        elm_and_attr_relation.elm_id
+                    ));
+                }
+            }
+            ElmAndReactiveInfo::ElmAndVariableRelation(elm_and_variable_relation) => {
+                let depending_variables = elm_and_variable_relation.variable_names;
+                let target_id = elm_and_variable_relation.elm_id;
+
+                let dep_vars_assined_numbers = variable_name_and_assigned_numbers
+                    .iter()
+                    .filter(|v| {
+                        depending_variables
+                            .iter()
+                            .map(|d| *d == v.name)
+                            .collect::<Vec<bool>>()
+                            .contains(&true)
+                    })
+                    .map(|v| v.assignment)
+                    .collect::<Vec<u32>>();
+
+                let x = if elm_and_variable_relation.ctx_num != 0 {
+                    format!(
+                        "(!((refs[3] & {0}) ^ {0})) && ",
+                        elm_and_variable_relation.ctx_num
+                    )
+                } else {
+                    "".to_string()
+                };
+
+                let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
+                replace_statements.push(format!(
+                    "{}refs[2] & {:?} && replaceText(`{}`, {}Ref);",
+                    x,
+                    combined_number,
+                    elm_and_variable_relation.content_of_element.trim(),
+                    target_id
+                ));
+            }
+        }
     }
 
     let code = replace_statements
@@ -329,6 +368,7 @@ fn gen_render_if_statements(if_block_info: &Vec<IfBlockInfo>) -> Vec<String> {
             },
         };
         // TODO: 一連の処理を関数にまとめる
+        // TODO: CreateIndentを複数行に対応させる
         let js_gen_elm_code = js_gen_elm_code_arr
             .iter()
             .map(|c| create_indent(c))
@@ -338,10 +378,12 @@ fn gen_render_if_statements(if_block_info: &Vec<IfBlockInfo>) -> Vec<String> {
             r#"const render{}Elm = () => {{
 {}
 {}
+{}
 }}"#,
             &if_block.if_block_id,
             js_gen_elm_code,
-            create_indent(insert_elm.as_str())
+            create_indent(insert_elm.as_str()),
+            create_indent(format!("refs[3] |= {};", &if_block.blk_num).as_str()),
         ));
         render_if.push(format!(
             "{} && render{}Elm()",
