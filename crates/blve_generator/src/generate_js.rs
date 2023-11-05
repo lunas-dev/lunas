@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use blve_parser::DetailedBlock;
 
 use crate::{
@@ -61,25 +63,42 @@ pub fn generate_js_from_blocks(
     let html_insert = format!("elm.innerHTML = `{}`;", html_str);
 
     let create_anchor_statements = gen_create_anchor_statements(&if_blocks_info);
-    let ref_getter_expression = gen_ref_getter_from_needed_ids(needed_id);
+    let ref_getter_expression = gen_ref_getter_from_needed_ids(&needed_id);
     let event_listener_codes = create_event_listener(action_and_target);
     let mut codes = vec![js_output, html_insert, ref_getter_expression];
 
+    // TODO:他の処理同様、ここも関数に切り出す
     if if_blocks_info.len() > 0 {
-        let mut decl = "let ".to_string();
-        for (index, if_block_info) in if_blocks_info.iter().enumerate() {
-            decl.push_str(format!("{}Ref", if_block_info.if_block_id).as_str());
-            if index != if_blocks_info.len() - 1 {
-                decl.push_str(", ");
+        let mut variables_to_declare = HashSet::new();
+        for if_block_info in &if_blocks_info {
+            variables_to_declare.insert(if_block_info.if_block_id.clone());
+            let new_ctx_under_if = {
+                let mut ctx = if_block_info.ctx.clone();
+                ctx.push(if_block_info.if_block_id.clone());
+                ctx
+            };
+            for needed_id in needed_id.iter() {
+                if needed_id.ctx == new_ctx_under_if {
+                    variables_to_declare.insert(needed_id.node_id.clone());
+                }
             }
         }
-        decl.push_str(";");
-        codes.push(decl);
+
+        if variables_to_declare.len() != 0 {
+            let decl = format!(
+                "let {};",
+                itertools::join(
+                    variables_to_declare.iter().map(|v| format!("{}Ref", v)),
+                    ", "
+                )
+            );
+            codes.push(decl);
+        }
     }
 
     codes.extend(create_anchor_statements);
     codes.extend(event_listener_codes);
-    let render_if = gen_render_if_statements(&if_blocks_info);
+    let render_if = gen_render_if_statements(&if_blocks_info, &needed_id);
     codes.extend(render_if);
     let update_func_code =
         gen_update_func_statement(elm_and_var_relation, variables, if_blocks_info);
@@ -133,30 +152,30 @@ fn create_indent(string: &str) -> String {
     output
 }
 
-fn gen_ref_getter_from_needed_ids(needed_ids: Vec<NeededIdName>) -> String {
+fn gen_ref_getter_from_needed_ids(needed_ids: &Vec<NeededIdName>) -> String {
     let mut ref_getter_str = "const [".to_string();
     ref_getter_str.push_str(
         needed_ids
             .iter()
-            .filter(|id: &&NeededIdName| id.get_ref)
+            .filter(|id: &&NeededIdName| id.ctx.len() == 0)
             .map(|id| format!("{}Ref", id.node_id))
             .collect::<Vec<String>>()
-            .join(",")
+            .join(", ")
             .as_str(),
     );
     ref_getter_str.push_str("] = getElmRefs([");
     ref_getter_str.push_str(
         needed_ids
             .iter()
-            .filter(|id: &&NeededIdName| id.get_ref)
+            .filter(|id: &&NeededIdName| id.ctx.len() == 0)
             .map(|id| format!("\"{}\"", id.id_name))
             .collect::<Vec<String>>()
-            .join(",")
+            .join(", ")
             .as_str(),
     );
     let delete_id_bool_map = needed_ids
         .iter()
-        .filter(|id: &&NeededIdName| id.get_ref)
+        .filter(|id: &&NeededIdName| id.ctx.len() == 0)
         .map(|id| id.to_delete)
         .collect::<Vec<bool>>();
     let delete_id_map = gen_binary_map_from_bool(delete_id_bool_map);
@@ -347,7 +366,10 @@ fn gen_create_anchor_statements(if_block_info: &Vec<IfBlockInfo>) -> Vec<String>
     create_anchor_statements
 }
 
-fn gen_render_if_statements(if_block_info: &Vec<IfBlockInfo>) -> Vec<String> {
+fn gen_render_if_statements(
+    if_block_info: &Vec<IfBlockInfo>,
+    needed_ids: &Vec<NeededIdName>,
+) -> Vec<String> {
     let mut render_if = vec![];
 
     for (index, if_block) in if_block_info.iter().enumerate() {
@@ -370,6 +392,68 @@ fn gen_render_if_statements(if_block_info: &Vec<IfBlockInfo>) -> Vec<String> {
                 None => format!("{}Ref.insertBefore({}, null);", if_block.parent_id, name),
             },
         };
+
+        // TODO:一連の生成コードを、need_idのmethodとして関数にまとめる
+        let current_blk_ctx = {
+            let mut new_ctx = if_block.ctx.clone();
+            new_ctx.push(if_block.if_block_id.clone());
+            new_ctx
+        };
+        let filtered = needed_ids
+            .iter()
+            .filter(|id: &&NeededIdName| id.ctx == current_blk_ctx);
+
+        let ref_getter_str = if filtered.clone().count() > 0 {
+            // TODO:format!などを使ってもっとみやすいコードを書く
+            let mut ref_getter_str = "\n[".to_string();
+
+            ref_getter_str.push_str(
+                filtered
+                    .clone()
+                    .map(|id| format!("{}Ref", id.node_id))
+                    .collect::<Vec<String>>()
+                    .join(", ")
+                    .as_str(),
+            );
+            ref_getter_str.push_str("] = getElmRefs([");
+            ref_getter_str.push_str(
+                filtered
+                    .clone()
+                    .map(|id| format!("\"{}\"", id.id_name))
+                    .collect::<Vec<String>>()
+                    .join(",")
+                    .as_str(),
+            );
+            let delete_id_bool_map = needed_ids
+                .iter()
+                .filter(|id: &&NeededIdName| id.ctx == current_blk_ctx)
+                .map(|id| id.to_delete)
+                .collect::<Vec<bool>>();
+            let delete_id_map = gen_binary_map_from_bool(delete_id_bool_map);
+            ref_getter_str.push_str(format!("], {map});", map = delete_id_map).as_str());
+
+            ref_getter_str
+        } else {
+            "".to_string()
+        };
+
+        let children = if_block.find_children(&if_block_info);
+
+        let child_block_rendering_exec = if children.len() != 0 {
+            let mut rendering_statement = "\n".to_string();
+            let mut child_block_rendering_exec = vec![];
+            for child_if in children {
+                child_block_rendering_exec.push(format!(
+                    "{} && render{}Elm()",
+                    child_if.condition, &child_if.if_block_id
+                ));
+            }
+            rendering_statement.push_str(child_block_rendering_exec.join("\n").as_str());
+            rendering_statement
+        } else {
+            "".to_string()
+        };
+
         // TODO: 一連の処理を関数にまとめる
         // TODO: CreateIndentを複数行に対応させる
         let js_gen_elm_code = js_gen_elm_code_arr
@@ -382,17 +466,21 @@ fn gen_render_if_statements(if_block_info: &Vec<IfBlockInfo>) -> Vec<String> {
             r#"const render{}Elm = () => {{
 {}
 {}
-{}
+{}{}{}
 }}"#,
             &if_block.if_block_id,
             js_gen_elm_code,
             create_indent(insert_elm.as_str()),
             create_indent(format!("refs[3] |= {};", blk_num).as_str()),
+            create_indent(ref_getter_str.as_str()),
+            create_indent(child_block_rendering_exec.as_str())
         ));
-        render_if.push(format!(
-            "{} && render{}Elm()",
-            if_block.condition, &if_block.if_block_id
-        ));
+        if if_block.ctx.len() == 0 {
+            render_if.push(format!(
+                "{} && render{}Elm()",
+                if_block.condition, &if_block.if_block_id
+            ));
+        }
     }
     render_if
 }
