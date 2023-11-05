@@ -32,6 +32,7 @@ pub fn check_html_elms(
     html_manipulators: &mut Vec<HtmlManipulator>,
     if_blocks_info: &mut Vec<IfBlockInfo>,
     if_blk_ctx: &Vec<String>,
+    element_location: &Vec<usize>,
 ) -> Result<(), String> {
     let node_id = node.uuid.clone();
     match &mut node.content {
@@ -61,6 +62,8 @@ pub fn check_html_elms(
                                 child_uuid: node.uuid.clone(),
                                 condition: condition.clone(),
                                 block_id: node.uuid.clone(),
+                                ctx: ctx_array.clone(),
+                                elm_loc: element_location.clone(),
                             },
                         ),
                     });
@@ -68,6 +71,7 @@ pub fn check_html_elms(
                     element
                         .attributes
                         .insert("$$$conditional$$$".to_string(), None);
+                    ctx_array.push(node.uuid.clone());
                     if_block_id = Some(node.uuid.clone())
                 } else if key.starts_with("::") {
                     let binding_attr = &key[2..];
@@ -81,14 +85,6 @@ pub fn check_html_elms(
                             }),
                             target: node_id.clone(),
                         });
-                        // TODO:ctx_numの計算の共通化
-                        let mut ctx_num: u64 = 0;
-                        for (index, if_blk) in if_blocks_info.iter().enumerate() {
-                            if ctx_array.contains(&if_blk.parent_id) {
-                                let blk_num: u64 = (2 as u64).pow(index as u32);
-                                ctx_num = ctx_num | blk_num;
-                            }
-                        }
                         elm_and_var_relation.push(
                             ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(
                                 ElmAndReactiveAttributeRelation {
@@ -98,7 +94,8 @@ pub fn check_html_elms(
                                         content_of_attr: format!("{}.v", value),
                                         variable_names: vec![value.clone()],
                                     }],
-                                    ctx_num,
+                                    ctx: ctx_array.clone(),
+                                    elm_loc: element_location.clone(),
                                 },
                             ),
                         );
@@ -122,18 +119,11 @@ pub fn check_html_elms(
                     let reactive_attr_info = match reactive_attr_info {
                         Some(rel) => rel,
                         None => {
-                            // TODO:ctx_numの計算の共通化
-                            let mut ctx_num: u64 = 0;
-                            for (i, if_blk) in if_blocks_info.iter().enumerate() {
-                                if ctx_array.contains(&if_blk.parent_id) {
-                                    let blk_num: u64 = (2 as u64).pow(i as u32);
-                                    ctx_num = ctx_num | blk_num;
-                                }
-                            }
                             let rel2 = ElmAndReactiveAttributeRelation {
                                 elm_id: node_id.clone(),
                                 reactive_attr: vec![],
-                                ctx_num,
+                                ctx: ctx_array.clone(),
+                                elm_loc: element_location.clone(),
                             };
                             elm_and_var_relation
                                 .push(ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(rel2));
@@ -168,7 +158,9 @@ pub fn check_html_elms(
                 }
             }
 
-            for child_node in &mut element.children {
+            for (index, child_node) in element.children.iter_mut().enumerate() {
+                let mut new_element_location = element_location.clone();
+                new_element_location.push(index);
                 check_html_elms(
                     varibale_names,
                     child_node,
@@ -179,8 +171,10 @@ pub fn check_html_elms(
                     html_manipulators,
                     if_blocks_info,
                     &ctx_array,
+                    &new_element_location,
                 )?;
             }
+            // TODO: When html_manipulators is consumed, it should be removed
             for manip in html_manipulators {
                 if manip.target_uuid == node.uuid {
                     match &manip.manipulations {
@@ -211,16 +205,6 @@ pub fn check_html_elms(
                                 remove_statement.condition.as_str(),
                                 &varibale_names,
                             );
-                            // TODO:ctx_numの計算の共通化
-                            let mut ctx_num: u64 = 0;
-                            for (i, if_blk) in if_blocks_info.iter().enumerate() {
-                                if if_blk_ctx.contains(&if_blk.parent_id) {
-                                    let blk_num: u64 = (2 as u64).pow(i as u32);
-                                    ctx_num = ctx_num | blk_num;
-                                }
-                            }
-                            let blk_num = (2 as u64).pow(if_blocks_info.len() as u32);
-                            ctx_num = ctx_num | blk_num;
                             if_blocks_info.push(IfBlockInfo {
                                 parent_id: node_id.clone(),
                                 target_if_blk_id: remove_statement.child_uuid.clone(),
@@ -230,28 +214,20 @@ pub fn check_html_elms(
                                 ref_text_node_id,
                                 condition: cond,
                                 condition_dep_vars: dep_vars,
-                                ctx: if_blk_ctx.clone(),
+                                ctx: remove_statement.ctx.clone(),
                                 if_block_id: remove_statement.block_id.clone(),
-                                blk_num,
-                                ctx_num,
+                                element_location: remove_statement.elm_loc.clone(),
                             });
                         }
                         HtmlManipulation::SetIdForReactiveContent(set_id) => {
                             set_id_for_needed_elm(element, needed_ids, &node_id);
-                            // TODO:ctx_numの計算の共通化
-                            let mut ctx_num: u64 = 0;
-                            for (i, if_blk) in if_blocks_info.iter().enumerate() {
-                                if if_blk_ctx.contains(&if_blk.parent_id) {
-                                    let blk_num: u64 = (2 as u64).pow(i as u32);
-                                    ctx_num = ctx_num | blk_num;
-                                }
-                            }
                             elm_and_var_relation.push(ElmAndReactiveInfo::ElmAndVariableRelation(
                                 ElmAndVariableContentRelation {
                                     elm_id: node_id.clone(),
                                     variable_names: set_id.depenent_vars.clone(),
                                     content_of_element: set_id.text.clone(),
-                                    ctx_num,
+                                    ctx: set_id.ctx.clone(),
+                                    elm_loc: set_id.elm_loc.clone(),
                                 },
                             ));
                         }
@@ -287,6 +263,8 @@ pub fn check_html_elms(
                         SetIdForReactiveContent {
                             text: text.clone(),
                             depenent_vars: dep_vars,
+                            ctx: if_blk_ctx.clone(),
+                            elm_loc: element_location.clone(),
                         },
                     ),
                 });

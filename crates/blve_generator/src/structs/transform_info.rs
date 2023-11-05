@@ -80,9 +80,27 @@ pub struct IfBlockInfo {
     pub ref_text_node_id: Option<String>,
     pub condition: String,
     pub condition_dep_vars: Vec<String>,
-    // TODO: ctxを削除する
     pub ctx: Vec<String>,
     pub if_block_id: String,
-    pub blk_num: u64,
-    pub ctx_num: u64,
+    pub element_location: Vec<usize>,
 }
+
+impl IfBlockInfo {
+    pub fn generate_ctx_num(&self, if_blocks_infos: &Vec<IfBlockInfo>) -> usize {
+        let mut ctx_num: u64 = 0;
+        for (index, if_blk) in if_blocks_infos.iter().enumerate() {
+            if self.ctx.contains(&if_blk.target_if_blk_id) {
+                println!("match: {}", &if_blk.parent_id);
+                let blk_num: u64 = (2 as u64).pow(index as u32);
+                ctx_num = ctx_num | blk_num;
+            }
+        }
+
+        ctx_num as usize
+    }
+}
+
+pub fn sort_if_blocks(if_blocks: &mut Vec<IfBlockInfo>) {
+    if_blocks.sort_by(|a, b| a.element_location.cmp(&b.element_location));
+}
+
