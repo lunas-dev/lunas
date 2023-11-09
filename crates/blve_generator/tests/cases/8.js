@@ -36,7 +36,7 @@ export default function(elm) {
     const renderXebjWskhZx__DmYaHSonKElm = () => {
         XebjWskhZx__DmYaHSonKRef = document.createElement("div");
 
-        XebjWskhZx__DmYaHSonKRef.innerHTML = "AAA";
+        XebjWskhZx__DmYaHSonKRef.innerHTML = `AAA`;
 
         bfBi_AdyQbxpmGujhPyNiRef.insertBefore(XebjWskhZx__DmYaHSonKRef, XebjWskhZx__DmYaHSonKAnchor);
 
@@ -47,7 +47,7 @@ export default function(elm) {
     const renderXFXHxGWxitoxuitksqcmvElm = () => {
         XFXHxGWxitoxuitksqcmvRef = document.createElement("div");
 
-        XFXHxGWxitoxuitksqcmvRef.innerHTML = "BBB";
+        XFXHxGWxitoxuitksqcmvRef.innerHTML = `BBB`;
 
         bfBi_AdyQbxpmGujhPyNiRef.insertBefore(XFXHxGWxitoxuitksqcmvRef, XFXHxGWxitoxuitksqcmvAnchor);
 
@@ -58,7 +58,7 @@ export default function(elm) {
     const renderrdHlle_QDOqISDNfWxtSLElm = () => {
         rdHlle_QDOqISDNfWxtSLRef = document.createElement("div");
 
-        rdHlle_QDOqISDNfWxtSLRef.innerHTML = "CCC";
+        rdHlle_QDOqISDNfWxtSLRef.innerHTML = `CCC`;
 
         bfBi_AdyQbxpmGujhPyNiRef.insertBefore(rdHlle_QDOqISDNfWxtSLRef, nnXlXLNTzhEjOjH_mLaPHRef);
 
@@ -69,7 +69,7 @@ export default function(elm) {
     const renderhoYjNySiVoGuRkSwvEhkyElm = () => {
         hoYjNySiVoGuRkSwvEhkyRef = document.createElement("div");
 
-        hoYjNySiVoGuRkSwvEhkyRef.innerHTML = "DDD";
+        hoYjNySiVoGuRkSwvEhkyRef.innerHTML = `DDD`;
 
         bfBi_AdyQbxpmGujhPyNiRef.insertBefore(hoYjNySiVoGuRkSwvEhkyRef, hoYjNySiVoGuRkSwvEhkyAnchor);
 
@@ -80,7 +80,7 @@ export default function(elm) {
     const renderJhejclsYeRUtQjLurAJhYElm = () => {
         JhejclsYeRUtQjLurAJhYRef = document.createElement("div");
 
-        JhejclsYeRUtQjLurAJhYRef.innerHTML = "EEE";
+        JhejclsYeRUtQjLurAJhYRef.innerHTML = `EEE`;
 
         bfBi_AdyQbxpmGujhPyNiRef.insertBefore(JhejclsYeRUtQjLurAJhYRef, JhejclsYeRUtQjLurAJhYAnchor);
 
@@ -91,7 +91,7 @@ export default function(elm) {
     const renderVzvsqhLIqDZW_OaoRKVcZElm = () => {
         VzvsqhLIqDZW_OaoRKVcZRef = document.createElement("div");
 
-        VzvsqhLIqDZW_OaoRKVcZRef.innerHTML = "FFF";
+        VzvsqhLIqDZW_OaoRKVcZRef.innerHTML = `FFF`;
 
         bfBi_AdyQbxpmGujhPyNiRef.insertBefore(VzvsqhLIqDZW_OaoRKVcZRef, null);
 

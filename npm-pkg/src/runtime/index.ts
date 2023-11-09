@@ -1,18 +1,19 @@
-export type SymbolRefInfo = [number, boolean, (() => void) | null];
+export type SymbolRefInfo = [(() => void) | null, boolean, number, number];
 
 export class valueObj<T> {
 	constructor(
 		private _v: T,
 		private symbolIndex: number,
 		readonly symbolRef: SymbolRefInfo,
-	) {}
+	) { }
 
 	set v(v: T) {
 		if (this._v === v) return;
 		this._v = v;
-		this.symbolRef[0] = this.symbolIndex | this.symbolRef[0];
+		this.symbolRef[2] |= this.symbolIndex;
+
 		if (!this.symbolRef[1]) {
-			Promise.resolve().then(this.symbolRef[2]?.bind(this));
+			Promise.resolve().then(this.symbolRef[0]?.bind(this));
 			this.symbolRef[1] = true;
 		}
 	}
@@ -26,7 +27,7 @@ export function genUpdateFunc(updElm: () => void) {
 	return function (this: valueObj<any>) {
 		if (this.symbolRef[1]) {
 			updElm();
-			this.symbolRef[0] = 0;
+			this.symbolRef[2] = 0;
 			this.symbolRef[1] = false;
 		}
 	};
@@ -82,7 +83,7 @@ export function getElmRefs(ids: string[], preserveId: number) {
 	});
 }
 
-export function insertEmpty(parent: HTMLElement, anchor: HTMLElement|null) {
+export function insertEmpty(parent: HTMLElement, anchor: HTMLElement | null) {
 	const empty = document.createTextNode(" ");
 	parent.insertBefore(empty, anchor);
 	return empty;
