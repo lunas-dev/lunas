@@ -1,10 +1,16 @@
+use nanoid::nanoid;
+
 use crate::{
     orig_html_struct::{
-        html_manipulation::{HtmlManipulation, HtmlManipulator, SetIdForReactiveContent},
+        html_manipulation::{
+            HtmlManipulation, HtmlManipulator, RemoveChildForIfStatement, SetIdForReactiveContent,
+        },
         structs::{Element, Node, NodeContent},
     },
     structs::{
-        transform_info::{ActionAndTarget, EventBindingStatement, EventTarget, NeededIdName},
+        transform_info::{
+            ActionAndTarget, EventBindingStatement, EventTarget, IfBlockInfo, NeededIdName,
+        },
         transform_targets::{
             ElmAndReactiveAttributeRelation, ElmAndReactiveInfo, ElmAndVariableContentRelation,
             ReactiveAttr,
@@ -12,7 +18,7 @@ use crate::{
     },
 };
 
-use super::utils::{append_v_to_vars, gen_nanoid};
+use super::utils::{append_v_to_vars, UUID_GENERATOR};
 
 // TODO:dep_vars の使い方を再考する
 // RCを使用して、子から親のmutableな変数を参照できるようにする可能性も視野に入れる
@@ -24,25 +30,50 @@ pub fn check_html_elms(
     actions_and_targets: &mut Vec<ActionAndTarget>,
     parent_uuid: Option<&String>,
     html_manipulators: &mut Vec<HtmlManipulator>,
+    if_blocks_info: &mut Vec<IfBlockInfo>,
+    if_blk_ctx: &Vec<String>,
+    element_location: &Vec<usize>,
 ) -> Result<(), String> {
+    let node_id = node.uuid.clone();
     match &mut node.content {
         NodeContent::Element(element) => {
+            let mut ctx_array = if_blk_ctx.clone();
             for (key, action_value) in &element.attributes.clone() {
                 // if attrs.name starts with "@"
                 if key.starts_with("@") {
                     let action_name = &key[1..];
-                    let id = set_id_for_needed_elm(element, needed_ids);
+                    set_id_for_needed_elm(element, needed_ids, &node_id, &ctx_array);
                     if let Some(value) = &&action_value {
                         actions_and_targets.push(ActionAndTarget {
                             action_name: action_name.to_string(),
                             action: EventTarget::new(value.to_string(), varibale_names),
-                            target: id,
+                            target: node_id.clone(),
                         })
                     }
                     element.attributes.remove(key);
+                } else if key == ":if" {
+                    // TODO: Add error message for unwrap below
+                    let condition = action_value.clone().unwrap();
+                    html_manipulators.push(HtmlManipulator {
+                        target_uuid: parent_uuid.unwrap().clone(),
+                        manipulations: HtmlManipulation::RemoveChildForIfStatement(
+                            RemoveChildForIfStatement {
+                                child_uuid: node.uuid.clone(),
+                                condition: condition.clone(),
+                                block_id: node.uuid.clone(),
+                                ctx: ctx_array.clone(),
+                                elm_loc: element_location.clone(),
+                            },
+                        ),
+                    });
+                    element.attributes.remove(key);
+                    element
+                        .attributes
+                        .insert("$$$conditional$$$".to_string(), None);
+                    ctx_array.push(node.uuid.clone());
                 } else if key.starts_with("::") {
                     let binding_attr = &key[2..];
-                    let id: String = set_id_for_needed_elm(element, needed_ids);
+                    set_id_for_needed_elm(element, needed_ids, &node_id, &ctx_array);
                     if let Some(value) = &&action_value {
                         actions_and_targets.push(ActionAndTarget {
                             action_name: "input".to_string(),
@@ -50,17 +81,19 @@ pub fn check_html_elms(
                                 statement: format!("{}.v = event.target.{}", &value, &binding_attr),
                                 arg: "e".to_string(),
                             }),
-                            target: id.clone(),
+                            target: node_id.clone(),
                         });
                         elm_and_var_relation.push(
                             ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(
                                 ElmAndReactiveAttributeRelation {
-                                    elm_id: id,
+                                    elm_id: node_id.clone(),
                                     reactive_attr: vec![ReactiveAttr {
                                         attribute_key: binding_attr.to_string(),
                                         content_of_attr: format!("{}.v", value),
                                         variable_names: vec![value.clone()],
                                     }],
+                                    ctx: ctx_array.clone(),
+                                    elm_loc: element_location.clone(),
                                 },
                             ),
                         );
@@ -73,7 +106,8 @@ pub fn check_html_elms(
                     } else if key == ":textContent" {
                         Err(format!(":textContent is not supported"))?;
                     }
-                    let id: String = set_id_for_needed_elm(element, needed_ids);
+                    let id: String =
+                        set_id_for_needed_elm(element, needed_ids, &node_id, &ctx_array);
                     let raw_attr_name = &key[1..];
                     let raw_attr_value = action_value.clone();
 
@@ -85,8 +119,10 @@ pub fn check_html_elms(
                         Some(rel) => rel,
                         None => {
                             let rel2 = ElmAndReactiveAttributeRelation {
-                                elm_id: id.clone(),
+                                elm_id: node_id.clone(),
                                 reactive_attr: vec![],
+                                ctx: ctx_array.clone(),
+                                elm_loc: element_location.clone(),
                             };
                             elm_and_var_relation
                                 .push(ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(rel2));
@@ -121,7 +157,9 @@ pub fn check_html_elms(
                 }
             }
 
-            for child_node in &mut element.children {
+            for (index, child_node) in element.children.iter_mut().enumerate() {
+                let mut new_element_location = element_location.clone();
+                new_element_location.push(index);
                 check_html_elms(
                     varibale_names,
                     child_node,
@@ -130,28 +168,80 @@ pub fn check_html_elms(
                     actions_and_targets,
                     Some(&node.uuid),
                     html_manipulators,
+                    if_blocks_info,
+                    &ctx_array,
+                    &new_element_location,
                 )?;
             }
+            // TODO: When html_manipulators is consumed, it should be removed
             for manip in html_manipulators {
                 if manip.target_uuid == node.uuid {
                     match &manip.manipulations {
                         HtmlManipulation::RemoveChildForIfStatement(remove_statement) => {
-                            let id = set_id_for_needed_elm(element, needed_ids);
-                            // TODO:実装する
+                            set_id_for_needed_elm(
+                                element,
+                                needed_ids,
+                                &node_id,
+                                &remove_statement.ctx,
+                            );
+                            let (elm, _, distance, idx_of_ref) =
+                                element.remove_child(&remove_statement.child_uuid);
+
+                            let target_anchor_id = if let Some(idx_of_ref) = idx_of_ref {
+                                let node_id =
+                                    &element.children[idx_of_ref as usize - 1].uuid.clone();
+                                Some(set_id_for_needed_elm(
+                                    match &mut element.children[idx_of_ref as usize - 1].content {
+                                        NodeContent::Element(elm) => elm,
+                                        _ => panic!("not element"),
+                                    },
+                                    needed_ids,
+                                    node_id,
+                                    // TODO: ifブロックの親のctxを指定しているが、その旨が明示的ではないので、明示的にする
+                                    &if_blk_ctx,
+                                ));
+                                Some(node_id.clone())
+                            } else {
+                                None
+                            };
+                            let ref_text_node_id = match distance != 1 {
+                                true => Some(nanoid!()),
+                                false => None,
+                            };
+                            let (cond, dep_vars) = append_v_to_vars(
+                                remove_statement.condition.as_str(),
+                                &varibale_names,
+                            );
+                            if_blocks_info.push(IfBlockInfo {
+                                parent_id: node_id.clone(),
+                                target_if_blk_id: remove_statement.child_uuid.clone(),
+                                distance,
+                                target_anchor_id,
+                                elm,
+                                ref_text_node_id,
+                                condition: cond,
+                                condition_dep_vars: dep_vars,
+                                ctx: remove_statement.ctx.clone(),
+                                if_block_id: remove_statement.block_id.clone(),
+                                element_location: remove_statement.elm_loc.clone(),
+                            });
                         }
                         HtmlManipulation::SetIdForReactiveContent(set_id) => {
-                            let id = set_id_for_needed_elm(element, needed_ids);
+                            set_id_for_needed_elm(element, needed_ids, &node_id, &set_id.ctx);
                             elm_and_var_relation.push(ElmAndReactiveInfo::ElmAndVariableRelation(
                                 ElmAndVariableContentRelation {
-                                    elm_id: id,
+                                    elm_id: node_id.clone(),
                                     variable_names: set_id.depenent_vars.clone(),
                                     content_of_element: set_id.text.clone(),
+                                    ctx: set_id.ctx.clone(),
+                                    elm_loc: set_id.elm_loc.clone(),
                                 },
                             ));
                         }
                     }
                 }
             }
+
             Ok(())
         }
         NodeContent::TextNode(text) => {
@@ -163,6 +253,8 @@ pub fn check_html_elms(
                         SetIdForReactiveContent {
                             text: text.clone(),
                             depenent_vars: dep_vars,
+                            ctx: if_blk_ctx.clone(),
+                            elm_loc: element_location.clone(),
                         },
                     ),
                 });
@@ -171,145 +263,14 @@ pub fn check_html_elms(
         }
         crate::orig_html_struct::structs::NodeContent::Comment(_) => Ok(()),
     }
-    // let node_len = *(&nodes.len().clone()) as u32;
-    // for node in nodes {
-    //     dep_vars = match node {
-    //         Node::Element(element) => {
-    //             for (key, action_value) in element.attributes.clone() {
-    //                 // if attrs.name starts with "@"
-    //                 if key.starts_with("@") {
-    //                     let action_name = &key[1..];
-    //                     let id: String = set_id_for_needed_elm(element, needed_ids);
-    //                     if let Some(value) = &&action_value {
-    //                         actions_and_targets.push(ActionAndTarget {
-    //                             action_name: action_name.to_string(),
-    //                             action: EventTarget::new(value.to_string(), varibale_names),
-    //                             target: id,
-    //                         })
-    //                     }
-    //                     element.attributes.remove(&key);
-    //                 } else if key.starts_with("::") {
-    //                     let binding_attr = &key[2..];
-    //                     let id: String = set_id_for_needed_elm(element, needed_ids);
-    //                     if let Some(value) = &&action_value {
-    //                         actions_and_targets.push(ActionAndTarget {
-    //                             action_name: "input".to_string(),
-    //                             action: EventTarget::EventBindingStatement(EventBindingStatement {
-    //                                 statement: format!(
-    //                                     "{}.v = event.target.{}",
-    //                                     &value, &binding_attr
-    //                                 ),
-    //                                 arg: "e".to_string(),
-    //                             }),
-    //                             target: id.clone(),
-    //                         });
-    //                         elm_and_var_relation.push(
-    //                             ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(
-    //                                 ElmAndReactiveAttributeRelation {
-    //                                     elm_id: id,
-    //                                     reactive_attr: vec![ReactiveAttr {
-    //                                         attribute_key: binding_attr.to_string(),
-    //                                         content_of_attr: format!("{}.v", value),
-    //                                         variable_names: vec![value.clone()],
-    //                                     }],
-    //                                 },
-    //                             ),
-    //                         );
-    //                     }
-    //                     element.attributes.remove(&key);
-    //                 } else if key.starts_with(":") {
-    //                     if key == ":innerHtml" {
-    //                         Err(format!(":innerHtml is not supported"))?;
-    //                     } else if key == ":textContent" {
-    //                         Err(format!(":textContent is not supported"))?;
-    //                     }
-
-    //                     let id: String = set_id_for_needed_elm(element, needed_ids);
-    //                     let raw_attr_name = &key[1..];
-    //                     let raw_attr_value = action_value.clone();
-
-    //                     let reactive_attr_info =
-    //                         find_reactive_attr_from_id(&id, elm_and_var_relation);
-
-    //                     // if elm_and_var_relation includes elm_id
-
-    //                     let reactive_attr_info = match reactive_attr_info {
-    //                         Some(rel) => rel,
-    //                         None => {
-    //                             let rel2 = ElmAndReactiveAttributeRelation {
-    //                                 elm_id: id.clone(),
-    //                                 reactive_attr: vec![],
-    //                             };
-    //                             elm_and_var_relation.push(
-    //                                 ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(rel2),
-    //                             );
-    //                             find_reactive_attr_from_id(&id, elm_and_var_relation).unwrap()
-    //                         }
-    //                     };
-
-    //                     // Check if the value is null
-    //                     // TODO:要素のIndexを返すようにする
-    //                     if raw_attr_value.is_none() {
-    //                         Err(format!("value of attribute :{} is null", raw_attr_name))?;
-    //                     }
-
-    //                     let mut raw_attr_value = raw_attr_value.unwrap();
-
-    //                     let (raw_attr_value, used_vars) =
-    //                         append_v_to_vars(&mut raw_attr_value, varibale_names);
-
-    //                     element.attributes.remove(&key);
-    //                     element.attributes.insert(
-    //                         raw_attr_name.to_string(),
-    //                         Some(format!("${{{}}}", raw_attr_value)),
-    //                     );
-
-    //                     let k = ReactiveAttr {
-    //                         attribute_key: raw_attr_name.to_string(),
-    //                         content_of_attr: raw_attr_value,
-    //                         variable_names: used_vars,
-    //                     };
-
-    //                     reactive_attr_info.reactive_attr.push(k);
-    //                 }
-    //             }
-    //             let var_deps = check_html_elms(
-    //                 varibale_names,
-    //                 &mut element.children,
-    //                 needed_ids,
-    //                 elm_and_var_relation,
-    //                 actions_and_targets,
-    //             )?;
-
-    //             if var_deps.len() > 0 {
-    //                 let id: String = set_id_for_needed_elm(element, needed_ids);
-    //                 // TODO:以下のIf文のコーナーケースを考える
-    //                 if element.children.len() == 1 && element.children[0].is_text() {
-    //                     elm_and_var_relation.push(ElmAndReactiveInfo::ElmAndVariableRelation(
-    //                         ElmAndVariableContentRelation {
-    //                             elm_id: id,
-    //                             variable_names: var_deps,
-    //                             content_of_element: element.children[0].as_text().clone(),
-    //                         },
-    //                     ));
-    //                 }
-    //             }
-    //             vec![]
-    //         }
-    //         Node::Text(text) => {
-    //             let dep_vars = replace_text_with_reactive_value(text, varibale_names);
-    //             if node_len == 1 {
-    //                 dep_vars
-    //             } else {
-    //                 vec![]
-    //             }
-    //         }
-    //         _ => vec![],
-    //     };
-    // }
 }
 
-fn set_id_for_needed_elm(element: &mut Element, needed_ids: &mut Vec<NeededIdName>) -> String {
+fn set_id_for_needed_elm(
+    element: &mut Element,
+    needed_ids: &mut Vec<NeededIdName>,
+    node_id: &String,
+    ctx: &Vec<String>,
+) -> String {
     if let Some(Some(id)) = element.attributes.get("id") {
         let id = if needed_ids.iter().any(|x| x.id_name == id.clone()) {
             id.clone()
@@ -317,54 +278,26 @@ fn set_id_for_needed_elm(element: &mut Element, needed_ids: &mut Vec<NeededIdNam
             needed_ids.push(NeededIdName {
                 id_name: id.clone(),
                 to_delete: false,
+                node_id: node_id.clone(),
+                ctx: ctx.clone(),
             });
             id.clone()
         };
         id
     } else {
-        let new_id = gen_nanoid();
+        let new_id = UUID_GENERATOR.lock().unwrap().gen();
         element
             .attributes
             .insert("id".to_string(), Some(new_id.clone()));
         needed_ids.push(NeededIdName {
             id_name: new_id.clone(),
             to_delete: true,
+            node_id: node_id.clone(),
+            ctx: ctx.clone(),
         });
         new_id
     }
 }
-
-// fn set_id_for_needed_elm(
-//     node: Rc<RefCell<Node>>,
-//     needed_ids: &mut Vec<NeededIdName>,
-// ) -> Result<String, String> {
-//     match &mut (*node).borrow_mut().content {
-//         NodeContent::Element(elm) => {
-//             if let Some(Some(id)) = elm.attributes.get("id") {
-//                 let id = if needed_ids.iter().any(|x| x.id_name == id.clone()) {
-//                     id.clone()
-//                 } else {
-//                     needed_ids.push(NeededIdName {
-//                         id_name: id.clone(),
-//                         to_delete: false,
-//                     });
-//                     id.clone()
-//                 };
-//                 Ok(id)
-//             } else {
-//                 let new_id = gen_nanoid();
-//                 elm.attributes
-//                     .insert("id".to_string(), Some(new_id.clone()));
-//                 needed_ids.push(NeededIdName {
-//                     id_name: new_id.clone(),
-//                     to_delete: true,
-//                 });
-//                 Ok(new_id)
-//             }
-//         }
-//         _ => Err(format!("set_id_for_needed_elm: node is not element")),
-//     }
-// }
 
 // FIXME:カッコが複数でも、escapeTextは各バインディングに1つだけでいい
 // 具体例:
@@ -466,150 +399,3 @@ fn find_reactive_attr_from_id<'a>(
         })
         .find(|x| x.elm_id == id)
 }
-
-// pub fn check_html_elms(
-//     varibale_names: &Vec<String>,
-//     nodes: &mut Vec<Node>,
-//     needed_ids: &mut Vec<NeededIdName>,
-//     elm_and_var_relation: &mut Vec<ElmAndReactiveInfo>,
-//     actions_and_targets: &mut Vec<ActionAndTarget>,
-// ) -> Result<Vec<String>, String> {
-//     let node_len = *(&nodes.len().clone()) as u32;
-//     let mut dep_vars: Vec<String> = vec![];
-//     for node in nodes {
-//         dep_vars = match node {
-//             Node::Element(element) => {
-//                 for (key, action_value) in element.attributes.clone() {
-//                     // if attrs.name starts with "@"
-//                     if key.starts_with("@") {
-//                         let action_name = &key[1..];
-//                         let id: String = set_id_for_needed_elm(element, needed_ids);
-//                         if let Some(value) = &&action_value {
-//                             actions_and_targets.push(ActionAndTarget {
-//                                 action_name: action_name.to_string(),
-//                                 action: EventTarget::new(value.to_string(), varibale_names),
-//                                 target: id,
-//                             })
-//                         }
-//                         element.attributes.remove(&key);
-//                     } else if key.starts_with("::") {
-//                         let binding_attr = &key[2..];
-//                         let id: String = set_id_for_needed_elm(element, needed_ids);
-//                         if let Some(value) = &&action_value {
-//                             actions_and_targets.push(ActionAndTarget {
-//                                 action_name: "input".to_string(),
-//                                 action: EventTarget::EventBindingStatement(EventBindingStatement {
-//                                     statement: format!(
-//                                         "{}.v = event.target.{}",
-//                                         &value, &binding_attr
-//                                     ),
-//                                     arg: "e".to_string(),
-//                                 }),
-//                                 target: id.clone(),
-//                             });
-//                             elm_and_var_relation.push(
-//                                 ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(
-//                                     ElmAndReactiveAttributeRelation {
-//                                         elm_id: id,
-//                                         reactive_attr: vec![ReactiveAttr {
-//                                             attribute_key: binding_attr.to_string(),
-//                                             content_of_attr: format!("{}.v", value),
-//                                             variable_names: vec![value.clone()],
-//                                         }],
-//                                     },
-//                                 ),
-//                             );
-//                         }
-//                         element.attributes.remove(&key);
-//                     } else if key.starts_with(":") {
-//                         if key == ":innerHtml" {
-//                             Err(format!(":innerHtml is not supported"))?;
-//                         } else if key == ":textContent" {
-//                             Err(format!(":textContent is not supported"))?;
-//                         }
-
-//                         let id: String = set_id_for_needed_elm(element, needed_ids);
-//                         let raw_attr_name = &key[1..];
-//                         let raw_attr_value = action_value.clone();
-
-//                         let reactive_attr_info =
-//                             find_reactive_attr_from_id(&id, elm_and_var_relation);
-
-//                         // if elm_and_var_relation includes elm_id
-
-//                         let reactive_attr_info = match reactive_attr_info {
-//                             Some(rel) => rel,
-//                             None => {
-//                                 let rel2 = ElmAndReactiveAttributeRelation {
-//                                     elm_id: id.clone(),
-//                                     reactive_attr: vec![],
-//                                 };
-//                                 elm_and_var_relation.push(
-//                                     ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(rel2),
-//                                 );
-//                                 find_reactive_attr_from_id(&id, elm_and_var_relation).unwrap()
-//                             }
-//                         };
-
-//                         // Check if the value is null
-//                         // TODO:要素のIndexを返すようにする
-//                         if raw_attr_value.is_none() {
-//                             Err(format!("value of attribute :{} is null", raw_attr_name))?;
-//                         }
-
-//                         let mut raw_attr_value = raw_attr_value.unwrap();
-
-//                         let (raw_attr_value, used_vars) =
-//                             append_v_to_vars(&mut raw_attr_value, varibale_names);
-
-//                         element.attributes.remove(&key);
-//                         element.attributes.insert(
-//                             raw_attr_name.to_string(),
-//                             Some(format!("${{{}}}", raw_attr_value)),
-//                         );
-
-//                         let k = ReactiveAttr {
-//                             attribute_key: raw_attr_name.to_string(),
-//                             content_of_attr: raw_attr_value,
-//                             variable_names: used_vars,
-//                         };
-
-//                         reactive_attr_info.reactive_attr.push(k);
-//                     }
-//                 }
-//                 let var_deps = check_html_elms(
-//                     varibale_names,
-//                     &mut element.children,
-//                     needed_ids,
-//                     elm_and_var_relation,
-//                     actions_and_targets,
-//                 )?;
-
-//                 if var_deps.len() > 0 {
-//                     let id: String = set_id_for_needed_elm(element, needed_ids);
-//                     // TODO:以下のIf文のコーナーケースを考える
-//                     if element.children.len() == 1 && element.children[0].is_text() {
-//                         elm_and_var_relation.push(ElmAndReactiveInfo::ElmAndVariableRelation(
-//                             ElmAndVariableContentRelation {
-//                                 elm_id: id,
-//                                 variable_names: var_deps,
-//                                 content_of_element: element.children[0].as_text().clone(),
-//                             },
-//                         ));
-//                     }
-//                 }
-//                 vec![]
-//             }
-//             Node::Text(text) => {
-//                 let dep_vars = replace_text_with_reactive_value(text, varibale_names);
-//                 if node_len == 1 {
-//                     dep_vars
-//                 } else {
-//                     vec![]
-//                 }
-//             }
-//             _ => vec![],
-//         };
-//     }
-//     Ok(dep_vars)
-// }
