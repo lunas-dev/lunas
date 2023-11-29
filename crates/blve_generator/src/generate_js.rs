@@ -100,6 +100,7 @@ pub fn generate_js_from_blocks(
     codes.extend(event_listener_codes);
     let render_if = gen_render_if_statements(&if_blocks_info, &needed_id);
     codes.extend(render_if);
+    codes.push("refs[4] = 0".to_string());
     let update_func_code =
         gen_update_func_statement(elm_and_var_relation, variables, if_blocks_info);
     codes.push(update_func_code);
@@ -126,7 +127,7 @@ fn gen_full_code(codes: Vec<String>, no_export: bool, runtime_path: String) -> S
         r#"import {{ reactiveValue, getElmRefs, addEvListener, genUpdateFunc, escapeHtml, replaceText, replaceAttr, insertEmpty }} from '{}'
 
 {}function(elm) {{
-    const refs = [null, false, 0, 0];
+    const refs = [null, false, 0, 0, 0];
 {}
 }}"#,
         runtime_path, func_decl, code,
@@ -304,8 +305,9 @@ fn gen_update_func_statement(
                     })
                     .map(|v| v.assignment)
                     .collect::<Vec<u32>>();
+                let under_if_blk = elm_and_variable_relation.ctx.len() != 0;
 
-                let if_blk_rendering_cond = if elm_and_variable_relation.ctx.len() != 0 {
+                let if_blk_rendering_cond = if under_if_blk {
                     format!(
                         "(!((refs[3] & {0}) ^ {0})) && ",
                         _elm_and_variable_relation.generate_ctx_num(&if_blocks_infos)
@@ -315,10 +317,21 @@ fn gen_update_func_statement(
                 };
 
                 let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
+
+                let to_update_cond = if under_if_blk {
+                    format!(
+                        "(refs[2] & {:?} && ((refs[4] & {1}) ^ {1}) )",
+                        combined_number,
+                        _elm_and_variable_relation.generate_ctx_num(&if_blocks_infos)
+                    )
+                } else {
+                    format!("refs[2] & {:?}", combined_number)
+                };
+
                 replace_statements.push(format!(
-                    "{}refs[2] & {:?} && replaceText(`{}`, {}Ref);",
+                    "{}{} && replaceText(`{}`, {}Ref);",
                     if_blk_rendering_cond,
-                    combined_number,
+                    to_update_cond,
                     elm_and_variable_relation.content_of_element.trim(),
                     target_id
                 ));
@@ -401,7 +414,8 @@ fn gen_render_if_statements(
         };
         let filtered = needed_ids
             .iter()
-            .filter(|id: &&NeededIdName| id.ctx == current_blk_ctx);
+            .filter(|id: &&NeededIdName| id.ctx == current_blk_ctx)
+            .filter(|id: &&NeededIdName| id.node_id != if_block.if_block_id);
 
         let ref_getter_str = if filtered.clone().count() > 0 {
             // TODO:format!などを使ってもっとみやすいコードを書く
@@ -462,6 +476,7 @@ fn gen_render_if_statements(
             .collect::<Vec<String>>()
             .join("\n");
         let blk_num: u64 = (2 as u64).pow(index as u32);
+        // TODO: {}の前後に改行があったりなかったりするので、統一する
         render_if.push(format!(
             r#"const render{}Elm = () => {{
 {}
@@ -471,7 +486,7 @@ fn gen_render_if_statements(
             &if_block.if_block_id,
             js_gen_elm_code,
             create_indent(insert_elm.as_str()),
-            create_indent(format!("refs[3] |= {};", blk_num).as_str()),
+            create_indent(format!("refs[3] |= {}, refs[4] |= {};", blk_num, blk_num).as_str()),
             create_indent(ref_getter_str.as_str()),
             create_indent(child_block_rendering_exec.as_str())
         ));

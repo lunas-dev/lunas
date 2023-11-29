@@ -1,4 +1,4 @@
-export type SymbolRefInfo = [(() => void) | null, boolean, number, number];
+export type SymbolRefInfo = [(() => void) | null, boolean, number, number, number];
 
 export class valueObj<T> {
 	constructor(
@@ -27,8 +27,9 @@ export function genUpdateFunc(updElm: () => void) {
 	return function (this: valueObj<any>) {
 		if (this.symbolRef[1]) {
 			updElm();
-			this.symbolRef[2] = 0;
 			this.symbolRef[1] = false;
+			this.symbolRef[2] = 0;
+			this.symbolRef[4] = 0;
 		}
 	};
 }
