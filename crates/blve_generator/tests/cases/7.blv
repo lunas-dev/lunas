@@ -1,0 +1,12 @@
+html:
+  <div>
+    <div :if="boolVal1">AAA</div>
+    <div>AAA</div>
+    <button @click="toggle">toggle</button>
+    <div>${boolVal1}</div>
+  </div>
+script:
+  let boolVal1 = false
+  function toggle() {
+    boolVal1 = !boolVal1
+  }
