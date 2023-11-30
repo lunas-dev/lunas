@@ -126,7 +126,7 @@ pub fn check_html_elms(
                             };
                             elm_and_var_relation
                                 .push(ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(rel2));
-                            find_reactive_attr_from_id(&id, elm_and_var_relation).unwrap()
+                            find_reactive_attr_from_id(&node_id, elm_and_var_relation).unwrap()
                         }
                     };
 
