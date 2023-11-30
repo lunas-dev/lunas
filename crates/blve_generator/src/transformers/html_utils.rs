@@ -18,7 +18,7 @@ use crate::{
     },
 };
 
-use super::utils::{append_v_to_vars, UUID_GENERATOR};
+use super::utils::{append_v_to_vars_in_html, UUID_GENERATOR};
 
 // TODO:dep_vars の使い方を再考する
 // RCを使用して、子から親のmutableな変数を参照できるようにする可能性も視野に入れる
@@ -126,7 +126,7 @@ pub fn check_html_elms(
                             };
                             elm_and_var_relation
                                 .push(ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(rel2));
-                            find_reactive_attr_from_id(&id, elm_and_var_relation).unwrap()
+                            find_reactive_attr_from_id(&node_id, elm_and_var_relation).unwrap()
                         }
                     };
 
@@ -139,7 +139,7 @@ pub fn check_html_elms(
                     let mut raw_attr_value = raw_attr_value.unwrap();
 
                     let (raw_attr_value, used_vars) =
-                        append_v_to_vars(&mut raw_attr_value, varibale_names);
+                        append_v_to_vars_in_html(&mut raw_attr_value, varibale_names);
 
                     element.attributes.remove(key);
                     element.attributes.insert(
@@ -208,7 +208,7 @@ pub fn check_html_elms(
                                 true => Some(nanoid!()),
                                 false => None,
                             };
-                            let (cond, dep_vars) = append_v_to_vars(
+                            let (cond, dep_vars) = append_v_to_vars_in_html(
                                 remove_statement.condition.as_str(),
                                 &varibale_names,
                             );
@@ -324,7 +324,7 @@ fn replace_text_with_reactive_value(code: &mut String, variables: &Vec<String>) 
 
             new_code.push_str(pre_bracket);
             new_code.push_str(start_tag);
-            let (output, dep_vars) = append_v_to_vars(in_bracket, variables);
+            let (output, dep_vars) = append_v_to_vars_in_html(in_bracket, variables);
             new_code.push_str(&escape_html(&output));
             new_code.push_str(end_tag);
 

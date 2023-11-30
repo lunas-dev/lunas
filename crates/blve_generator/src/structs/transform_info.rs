@@ -1,4 +1,4 @@
-use crate::{orig_html_struct::structs::Node, transformers::utils::append_v_to_vars};
+use crate::{orig_html_struct::structs::Node, transformers::utils::append_v_to_vars_in_html};
 
 #[derive(Debug, Clone)]
 pub struct AddStringToPosition {
@@ -61,7 +61,7 @@ impl EventTarget {
         } else if word_is_one_word(content.as_str()) {
             EventTarget::RefToFunction(content)
         } else {
-            EventTarget::Statement(append_v_to_vars(content.as_str(), &variables).0)
+            EventTarget::Statement(append_v_to_vars_in_html(content.as_str(), &variables).0)
         }
     }
 }
