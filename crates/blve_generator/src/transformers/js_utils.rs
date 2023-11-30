@@ -82,7 +82,6 @@ fn find_variable_declarations(
                                 });
                                 str_positions.push(AddStringToPosition {
                                     position: (end.as_u64().unwrap() - 1) as u32,
-                                    // string: ", 1, refs)".to_string(),
                                     string: format!(", {}, refs)", variable_num),
                                 });
                             }

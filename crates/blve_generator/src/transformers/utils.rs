@@ -1,9 +1,11 @@
 use std::{env, sync::Mutex};
 
 use rand::{rngs::StdRng, SeedableRng};
+use serde_json::Value;
 
 use crate::structs::transform_info::AddStringToPosition;
 
+// TODO: 綺麗な実装にする
 pub fn add_strings_to_script(
     position_and_strs: Vec<AddStringToPosition>,
     script: &String,
@@ -22,6 +24,8 @@ pub fn add_strings_to_script(
 }
 
 use rand::seq::SliceRandom;
+
+use super::utils_swc::parse_with_swc;
 
 lazy_static! {
     pub static ref UUID_GENERATOR: Mutex<UuidGenerator> = Mutex::new(UuidGenerator::new());
@@ -72,29 +76,53 @@ fn is_testgen() -> bool {
 }
 
 // TODO:SWCでパースする
-pub fn append_v_to_vars(input: &str, variables: &[String]) -> (String, Vec<String>) {
-    let mut depending_vars = Vec::new();
-    let operators = [
-        "+", "-", "*", "/", "%", "==", "!=", "<", ">", "<=", ">=", "?", ":", "&&", "||", "${", "}",
-    ];
-    let mut spaced_input = input.to_string();
-    for op in &operators {
-        spaced_input = spaced_input.replace(op, &format!(" {} ", op));
-    }
+pub fn append_v_to_vars_in_html(input: &str, variables: &Vec<String>) -> (String, Vec<String>) {
+    let parsed = parse_with_swc(&input.to_string());
 
-    let parts: Vec<String> = spaced_input
-        .split_whitespace()
-        .map(|part| {
-            let trimmed = part.trim();
-            if variables.contains(&trimmed.to_string()) {
-                depending_vars.push(trimmed.to_string());
-                format!("{}.v", trimmed)
-            } else {
-                trimmed.to_string()
+    let parsed_json = serde_json::to_value(&parsed).unwrap();
+
+    let (positions, depending_vars) = search_json(&parsed_json, &variables);
+
+    let modified_string = add_strings_to_script(positions, &input.to_string());
+
+    (modified_string, depending_vars)
+}
+
+pub fn search_json(
+    json: &Value,
+    variables: &Vec<String>,
+) -> (Vec<AddStringToPosition>, Vec<String>) {
+    let mut positions = vec![];
+    let mut depending_vars = vec![];
+
+    if let Value::Object(obj) = json {
+        if obj.contains_key("type") && obj["type"] == Value::String("Identifier".into()) {
+            if let Some(Value::String(variable_name)) = obj.get("value") {
+                if variables.iter().any(|e| e == variable_name) {
+                    if let Some(Value::Object(span)) = obj.get("span") {
+                        if let Some(Value::Number(end)) = span.get("end") {
+                            positions.push(AddStringToPosition {
+                                position: (end.as_u64().unwrap() - 1) as u32,
+                                string: ".v".to_string(),
+                            });
+                            depending_vars.push(variable_name.to_string());
+                        }
+                    }
+                }
             }
-        })
-        .collect();
-
-    let output = parts.join(" "); // Ensure that there's space between parts
-    (output, depending_vars)
+        } else {
+            for (_key, value) in obj {
+                let (result_positions, result_vars) = search_json(value, variables);
+                positions.extend(result_positions);
+                depending_vars.extend(result_vars);
+            }
+        }
+    } else if let Value::Array(arr) = json {
+        for value in arr {
+            let (result_positions, result_vars) = search_json(value, variables);
+            positions.extend(result_positions);
+            depending_vars.extend(result_vars);
+        }
+    }
+    (positions, depending_vars)
 }
