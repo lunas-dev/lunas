@@ -75,7 +75,7 @@ fn word_is_one_word(word: &str) -> bool {
 pub struct IfBlockInfo {
     pub parent_id: String,
     pub target_if_blk_id: String,
-    pub distance: u64,
+    pub distance_to_next_elm: u64,
     pub target_anchor_id: Option<String>,
     pub elm: Node,
     pub ref_text_node_id: Option<String>,
@@ -113,4 +113,57 @@ impl IfBlockInfo {
 
 pub fn sort_if_blocks(if_blocks: &mut Vec<IfBlockInfo>) {
     if_blocks.sort_by(|a, b| a.element_location.cmp(&b.element_location));
+}
+
+#[derive(Debug, Clone)]
+pub struct ManualRendererForTextNode {
+    pub parent_id: String,
+    pub text_node_id: String,
+    pub distance_to_next_elm: u64,
+    pub dep_vars: Vec<String>,
+    pub content: String,
+    pub ctx: Vec<String>,
+    pub element_location: Vec<usize>,
+    pub target_anchor_id: Option<String>,
+}
+
+pub enum TextNodeRenderer {
+    ManualRenderer(ManualRendererForTextNode),
+    IfBlockRenderer(IfBlockInfo),
+}
+
+impl TextNodeRenderer {
+    pub fn get_element_location(&self) -> &Vec<usize> {
+        match self {
+            TextNodeRenderer::ManualRenderer(renderer) => &renderer.element_location,
+            TextNodeRenderer::IfBlockRenderer(renderer) => &renderer.element_location,
+        }
+    }
+}
+
+pub struct TextNodeRendererGroup {
+    pub renderers: Vec<TextNodeRenderer>,
+}
+
+impl TextNodeRendererGroup {
+    pub fn sort_by_rendering_order(&mut self) {
+        self.renderers.sort_by(|a, b| {
+            return a.get_element_location().cmp(&b.get_element_location());
+        });
+    }
+
+    pub fn new(
+        if_blk: &Vec<IfBlockInfo>,
+        text_node_renderer: &Vec<ManualRendererForTextNode>,
+    ) -> Self {
+        let mut renderers: Vec<TextNodeRenderer> = vec![];
+        for if_blk in if_blk {
+            renderers.push(TextNodeRenderer::IfBlockRenderer(if_blk.clone()));
+        }
+        for txt_node_renderer in text_node_renderer {
+            renderers.push(TextNodeRenderer::ManualRenderer(txt_node_renderer.clone()));
+        }
+
+        TextNodeRendererGroup { renderers }
+    }
 }
