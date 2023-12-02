@@ -6,10 +6,10 @@ use crate::{
     orig_html_struct::structs::{Node, NodeContent},
     structs::{
         transform_info::{
-            sort_if_blocks, ActionAndTarget, IfBlockInfo, NeededIdName,
+            sort_if_blocks, ActionAndTarget, IfBlockInfo, NeededIdName, TextNodeRendererGroup,
             VariableNameAndAssignedNumber,
         },
-        transform_targets::{sort_elm_and_reactive_info, ElmAndReactiveInfo},
+        transform_targets::{sort_elm_and_reactive_info, NodeAndReactiveInfo},
     },
     transformers::{html_utils::check_html_elms, js_utils::analyze_js},
 };
@@ -37,6 +37,7 @@ pub fn generate_js_from_blocks(
     let mut elm_and_var_relation = vec![];
     let mut action_and_target = vec![];
     let mut if_blocks_info = vec![];
+    let mut text_node_renderer = vec![];
 
     let mut new_node = Node::new_from_dom(&blocks.detailed_language_blocks.dom)?;
 
@@ -50,8 +51,10 @@ pub fn generate_js_from_blocks(
         None,
         &mut vec![],
         &mut if_blocks_info,
+        &mut text_node_renderer,
         &vec![],
         &vec![0],
+        1,
     )?;
 
     sort_if_blocks(&mut if_blocks_info);
@@ -62,7 +65,8 @@ pub fn generate_js_from_blocks(
     // Generate JavaScript
     let html_insert = format!("elm.innerHTML = `{}`;", html_str);
 
-    let create_anchor_statements = gen_create_anchor_statements(&if_blocks_info);
+    let mut txt_node_renderer = TextNodeRendererGroup::new(&if_blocks_info, &text_node_renderer);
+    let create_anchor_statements = gen_create_anchor_statements(&mut txt_node_renderer, &vec![]);
     let ref_getter_expression = gen_ref_getter_from_needed_ids(&needed_id);
     let event_listener_codes = create_event_listener(action_and_target);
     let mut codes = vec![js_output, html_insert, ref_getter_expression];
@@ -124,7 +128,7 @@ fn gen_full_code(codes: Vec<String>, no_export: bool, runtime_path: String) -> S
         .collect::<Vec<String>>()
         .join("\n");
     format!(
-        r#"import {{ reactiveValue, getElmRefs, addEvListener, genUpdateFunc, escapeHtml, replaceText, replaceAttr, insertEmpty }} from '{}'
+        r#"import {{ reactiveValue, getElmRefs, addEvListener, genUpdateFunc, escapeHtml, replaceInnerText, replaceText, replaceAttr, insertEmpty,insertContent }} from '{}'
 
 {}function(elm) {{
     const refs = [null, false, 0, 0, 0];
@@ -208,7 +212,7 @@ fn create_event_listener(actions_and_targets: Vec<ActionAndTarget>) -> Vec<Strin
 }
 
 fn gen_update_func_statement(
-    elm_and_variable_relations: Vec<ElmAndReactiveInfo>,
+    elm_and_variable_relations: Vec<NodeAndReactiveInfo>,
     variable_name_and_assigned_numbers: Vec<VariableNameAndAssignedNumber>,
     if_blocks_infos: Vec<IfBlockInfo>,
 ) -> String {
@@ -255,7 +259,7 @@ fn gen_update_func_statement(
 
     for elm_and_variable_relation in elm_and_variable_relations {
         match elm_and_variable_relation {
-            ElmAndReactiveInfo::ElmAndReactiveAttributeRelation(elm_and_attr_relation) => {
+            NodeAndReactiveInfo::ElmAndReactiveAttributeRelation(elm_and_attr_relation) => {
                 let _elm_and_attr_relation = elm_and_attr_relation.clone();
                 for c in elm_and_attr_relation.reactive_attr {
                     let dep_vars_assined_numbers = variable_name_and_assigned_numbers
@@ -289,10 +293,9 @@ fn gen_update_func_statement(
                     ));
                 }
             }
-            ElmAndReactiveInfo::ElmAndVariableRelation(elm_and_variable_relation) => {
-                let _elm_and_variable_relation = elm_and_variable_relation.clone();
-                let depending_variables = elm_and_variable_relation.variable_names;
-                let target_id = elm_and_variable_relation.elm_id;
+            NodeAndReactiveInfo::ElmAndVariableRelation(elm_and_variable_relation) => {
+                let depending_variables = elm_and_variable_relation.dep_vars.clone();
+                let target_id = elm_and_variable_relation.elm_id.clone();
 
                 let dep_vars_assined_numbers = variable_name_and_assigned_numbers
                     .iter()
@@ -310,7 +313,7 @@ fn gen_update_func_statement(
                 let if_blk_rendering_cond = if under_if_blk {
                     format!(
                         "(!((refs[3] & {0}) ^ {0})) && ",
-                        _elm_and_variable_relation.generate_ctx_num(&if_blocks_infos)
+                        elm_and_variable_relation.generate_ctx_num(&if_blocks_infos)
                     )
                 } else {
                     "".to_string()
@@ -322,17 +325,65 @@ fn gen_update_func_statement(
                     format!(
                         "(refs[2] & {:?} && ((refs[4] & {1}) ^ {1}) )",
                         combined_number,
-                        _elm_and_variable_relation.generate_ctx_num(&if_blocks_infos)
+                        elm_and_variable_relation.generate_ctx_num(&if_blocks_infos)
                     )
                 } else {
                     format!("refs[2] & {:?}", combined_number)
                 };
 
                 replace_statements.push(format!(
-                    "{}{} && replaceText(`{}`, {}Ref);",
+                    "{}{} && replaceInnerText(`{}`, {}Ref);",
                     if_blk_rendering_cond,
                     to_update_cond,
                     elm_and_variable_relation.content_of_element.trim(),
+                    target_id
+                ));
+            }
+            NodeAndReactiveInfo::TextAndVariableContentRelation(txt_and_var_content) => {
+                // TODO: Elementとほとんど同じなので、共通化
+
+                let depending_variables = txt_and_var_content.dep_vars.clone();
+                let target_id = txt_and_var_content.text_node_id.clone();
+
+                let dep_vars_assined_numbers = variable_name_and_assigned_numbers
+                    .iter()
+                    .filter(|v| {
+                        depending_variables
+                            .iter()
+                            .map(|d| *d == v.name)
+                            .collect::<Vec<bool>>()
+                            .contains(&true)
+                    })
+                    .map(|v| v.assignment)
+                    .collect::<Vec<u32>>();
+                let under_if_blk = txt_and_var_content.ctx.len() != 0;
+
+                let if_blk_rendering_cond = if under_if_blk {
+                    format!(
+                        "(!((refs[3] & {0}) ^ {0})) && ",
+                        txt_and_var_content.generate_ctx_num(&if_blocks_infos)
+                    )
+                } else {
+                    "".to_string()
+                };
+
+                let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
+
+                let to_update_cond = if under_if_blk {
+                    format!(
+                        "(refs[2] & {:?} && ((refs[4] & {1}) ^ {1}) )",
+                        combined_number,
+                        txt_and_var_content.generate_ctx_num(&if_blocks_infos)
+                    )
+                } else {
+                    format!("refs[2] & {:?}", combined_number)
+                };
+
+                replace_statements.push(format!(
+                    "{}{} && replaceText(`{}`, {}Text);",
+                    if_blk_rendering_cond,
+                    to_update_cond,
+                    txt_and_var_content.content_of_element.trim(),
                     target_id
                 ));
             }
@@ -355,25 +406,50 @@ fn gen_update_func_statement(
     result
 }
 
-fn gen_create_anchor_statements(if_block_info: &Vec<IfBlockInfo>) -> Vec<String> {
+fn gen_create_anchor_statements(
+    text_node_renderer: &mut TextNodeRendererGroup,
+    ctx_condition: &Vec<String>,
+) -> Vec<String> {
     let mut create_anchor_statements = vec![];
-    for if_block in if_block_info {
-        match if_block.distance > 1 {
-            true => {
-                if if_block.ctx.len() > 0 {
+    text_node_renderer.sort_by_rendering_order();
+    for render in &text_node_renderer.renderers {
+        match render {
+            crate::structs::transform_info::TextNodeRenderer::ManualRenderer(txt_renderer) => {
+                if &txt_renderer.ctx != ctx_condition {
                     continue;
                 }
-                let anchor_id = match &if_block.target_anchor_id {
+                let anchor_id = match &txt_renderer.target_anchor_id {
                     Some(anchor_id) => format!("{}Ref", anchor_id),
                     None => "null".to_string(),
                 };
                 let create_anchor_statement = format!(
-                    "const {}Anchor = insertEmpty({}Ref,{});",
-                    if_block.if_block_id, if_block.parent_id, anchor_id
+                    "const {}Text = insertContent(`{}`,{}Ref,{});",
+                    &txt_renderer.text_node_id,
+                    &txt_renderer.content.trim(),
+                    &txt_renderer.parent_id,
+                    anchor_id
                 );
                 create_anchor_statements.push(create_anchor_statement);
             }
-            false => {}
+            crate::structs::transform_info::TextNodeRenderer::IfBlockRenderer(if_block) => {
+                match if_block.distance_to_next_elm > 1 {
+                    true => {
+                        if &if_block.ctx != ctx_condition {
+                            continue;
+                        }
+                        let anchor_id = match &if_block.target_anchor_id {
+                            Some(anchor_id) => format!("{}Ref", anchor_id),
+                            None => "null".to_string(),
+                        };
+                        let create_anchor_statement = format!(
+                            "const {}Anchor = insertEmpty({}Ref,{});",
+                            if_block.if_block_id, if_block.parent_id, anchor_id
+                        );
+                        create_anchor_statements.push(create_anchor_statement);
+                    }
+                    false => {}
+                }
+            }
         }
     }
     create_anchor_statements
@@ -390,7 +466,7 @@ fn gen_render_if_statements(
             NodeContent::Element(elm) => elm.generate_element_on_js(&if_block.if_block_id),
             _ => panic!(),
         };
-        let insert_elm = match if_block.distance > 1 {
+        let insert_elm = match if_block.distance_to_next_elm > 1 {
             true => format!(
                 "{}Ref.insertBefore({}, {}Anchor);",
                 if_block.parent_id, name, if_block.if_block_id
