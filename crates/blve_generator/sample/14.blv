@@ -1,0 +1,10 @@
+html:
+  <div id="wrapper">
+    ${hw}
+    <div id="d1">
+      ${hw2}
+    </div>
+  </div>
+script:
+  let hw = "hello world"
+  let hw2 = "hello world"
