@@ -1,0 +1,13 @@
+html:
+  <div>
+    <input ::value="inputValue" />
+    <div>inputValue: ${ inputValue }</div>
+    <button @click="inputValue = 'foo'">setFoo</button>
+    <button @click="addFoo">addFoo1</button>
+    <button @click="addFoo()">addFoo2</button>
+  </div>
+script:
+  let inputValue = ""
+  function addFoo() {
+    inputValue += "foo"
+  }

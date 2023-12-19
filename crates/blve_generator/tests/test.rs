@@ -11,8 +11,8 @@ use blve_generator::blve_compile_from_block;
 fn test_case_files() {
     std::env::set_var("BLVE_TEST", "true");
     let test_dir = "tests/cases";
-    let input_extension = "in";
-    let output_extension = "out";
+    let input_extension = "blv";
+    let output_extension = "js";
 
     let test_files = fs::read_dir(test_dir).expect("Failed to read test directory");
 
@@ -35,7 +35,7 @@ fn test_case_files() {
                     fs::read_to_string(&output_path).expect("Failed to read output file");
 
                 let b = parse_blve_file(input_content.as_str()).unwrap();
-                let compiled_input = blve_compile_from_block(&b).unwrap().0;
+                let compiled_input = blve_compile_from_block(&b, None, None).unwrap().0;
 
                 assert_eq!(
                     test_input.as_str(),

@@ -286,14 +286,6 @@ impl Dom {
                 Rule::attr => match Self::build_attribute(pair.into_inner()) {
                     Ok((attr_key, attr_value)) => {
                         match attr_key.as_str() {
-                            "class" => {
-                                if let Some(classes) = attr_value {
-                                    let classes = classes.split_whitespace().collect::<Vec<_>>();
-                                    for class in classes {
-                                        element.classes.push(class.to_string());
-                                    }
-                                }
-                            }
                             _ => {
                                 element.attributes.insert(attr_key, attr_value);
                             }
