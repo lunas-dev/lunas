@@ -19,6 +19,6 @@
   "homepage": "https://github.com/blvedev/blve#readme",
   "private": false,
   "devDependencies": {
-    "rome": "^12.1.3"
+    "biome": "^0.3.3"
   }
 }
