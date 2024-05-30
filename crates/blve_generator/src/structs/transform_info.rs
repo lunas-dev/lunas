@@ -1,9 +1,21 @@
 use crate::{orig_html_struct::structs::Node, transformers::utils::append_v_to_vars_in_html};
 
 #[derive(Debug, Clone)]
+pub enum TransformInfo {
+    AddStringToPosition(AddStringToPosition),
+    RemoveStatement(RemoveStatement),
+}
+
+#[derive(Debug, Clone)]
 pub struct AddStringToPosition {
     pub position: u32,
     pub string: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct RemoveStatement {
+    pub start_position: u32,
+    pub end_position: u32,
 }
 
 #[derive(Debug)]

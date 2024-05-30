@@ -28,8 +28,13 @@ pub fn generate_js_from_blocks(
         false => runtime_path.unwrap(),
     };
 
-    // Analyze JavaScript
-    let (variables, variable_names, js_output) = analyze_js(blocks);
+    let (variables, variable_names, imports, js_output) = analyze_js(blocks);
+
+    let imports_string = imports
+        .iter()
+        .map(|i| format!("\n{}", i))
+        .collect::<Vec<String>>()
+        .join("");
 
     // Clone HTML as mutable reference
     let mut needed_id = vec![];
@@ -108,13 +113,18 @@ pub fn generate_js_from_blocks(
     let update_func_code =
         gen_update_func_statement(elm_and_var_relation, variables, if_blocks_info);
     codes.push(update_func_code);
-    let full_code = gen_full_code(codes, no_export, runtime_path);
+    let full_code = gen_full_code(no_export, runtime_path, imports_string, codes);
     let css_code = blocks.detailed_language_blocks.css.clone();
 
     Ok((full_code, css_code))
 }
 
-fn gen_full_code(codes: Vec<String>, no_export: bool, runtime_path: String) -> String {
+fn gen_full_code(
+    no_export: bool,
+    runtime_path: String,
+    imports_string: String,
+    codes: Vec<String>,
+) -> String {
     let func_decl = if no_export {
         "const App = ".to_string()
     } else {
@@ -128,13 +138,13 @@ fn gen_full_code(codes: Vec<String>, no_export: bool, runtime_path: String) -> S
         .collect::<Vec<String>>()
         .join("\n");
     format!(
-        r#"import {{ reactiveValue, getElmRefs, addEvListener, genUpdateFunc, escapeHtml, replaceInnerText, replaceText, replaceAttr, insertEmpty,insertContent }} from '{}'
+        r#"import {{ reactiveValue, getElmRefs, addEvListener, genUpdateFunc, escapeHtml, replaceInnerText, replaceText, replaceAttr, insertEmpty,insertContent }} from '{}'{}
 
 {}function(elm) {{
     const refs = [null, false, 0, 0, 0];
 {}
 }}"#,
-        runtime_path, func_decl, code,
+        runtime_path, imports_string, func_decl, code,
     )
 }
 

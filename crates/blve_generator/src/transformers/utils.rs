@@ -3,21 +3,39 @@ use std::{env, sync::Mutex};
 use rand::{rngs::StdRng, SeedableRng};
 use serde_json::Value;
 
-use crate::structs::transform_info::AddStringToPosition;
+use crate::structs::transform_info::{AddStringToPosition, TransformInfo};
 
 // TODO: 綺麗な実装にする
-pub fn add_strings_to_script(
-    position_and_strs: Vec<AddStringToPosition>,
+pub fn add_or_remove_strings_to_script(
+    position_and_strs: Vec<TransformInfo>,
     script: &String,
 ) -> String {
-    let mut position_and_strs = position_and_strs.clone();
-    position_and_strs.sort_by(|a, b| a.position.cmp(&b.position));
+    let mut transformers = position_and_strs.clone();
+    transformers.sort_by(|a, b| {
+        let a = match a {
+            TransformInfo::AddStringToPosition(a) => a.position,
+            TransformInfo::RemoveStatement(a) => a.start_position,
+        };
+        let b = match b {
+            TransformInfo::AddStringToPosition(b) => b.position,
+            TransformInfo::RemoveStatement(b) => b.start_position,
+        };
+        a.cmp(&b)
+    });
     let mut result = String::new();
     let mut last_position = 0;
-    for position_and_str in position_and_strs {
-        result.push_str(&script[last_position..position_and_str.position as usize]);
-        result.push_str(&position_and_str.string);
-        last_position = position_and_str.position as usize;
+    for transform in transformers {
+        match transform {
+            TransformInfo::AddStringToPosition(add) => {
+                result.push_str(&script[last_position..add.position as usize]);
+                result.push_str(&add.string);
+                last_position = add.position as usize;
+            }
+            TransformInfo::RemoveStatement(remove) => {
+                result.push_str(&script[last_position..remove.start_position as usize]);
+                last_position = remove.end_position as usize;
+            }
+        }
     }
     result.push_str(&script[last_position..]);
     return result;
@@ -75,7 +93,6 @@ fn is_testgen() -> bool {
     }
 }
 
-// TODO:SWCでパースする
 pub fn append_v_to_vars_in_html(input: &str, variables: &Vec<String>) -> (String, Vec<String>) {
     let parsed = parse_with_swc(&input.to_string());
 
@@ -83,15 +100,12 @@ pub fn append_v_to_vars_in_html(input: &str, variables: &Vec<String>) -> (String
 
     let (positions, depending_vars) = search_json(&parsed_json, &variables);
 
-    let modified_string = add_strings_to_script(positions, &input.to_string());
+    let modified_string = add_or_remove_strings_to_script(positions, &input.to_string());
 
     (modified_string, depending_vars)
 }
 
-pub fn search_json(
-    json: &Value,
-    variables: &Vec<String>,
-) -> (Vec<AddStringToPosition>, Vec<String>) {
+pub fn search_json(json: &Value, variables: &Vec<String>) -> (Vec<TransformInfo>, Vec<String>) {
     let mut positions = vec![];
     let mut depending_vars = vec![];
 
@@ -101,10 +115,12 @@ pub fn search_json(
                 if variables.iter().any(|e| e == variable_name) {
                     if let Some(Value::Object(span)) = obj.get("span") {
                         if let Some(Value::Number(end)) = span.get("end") {
-                            positions.push(AddStringToPosition {
-                                position: (end.as_u64().unwrap() - 1) as u32,
-                                string: ".v".to_string(),
-                            });
+                            positions.push(TransformInfo::AddStringToPosition(
+                                AddStringToPosition {
+                                    position: (end.as_u64().unwrap() - 1) as u32,
+                                    string: ".v".to_string(),
+                                },
+                            ));
                             depending_vars.push(variable_name.to_string());
                         }
                     }
