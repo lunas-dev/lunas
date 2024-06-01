@@ -75,11 +75,11 @@ impl UuidGenerator {
             self.seed = self.seed + 1;
             id
         } else {
-            let alphabet: [char; 54] = [
+            let alphabet: [char; 53] = [
                 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p',
                 'q', 'r', 's', 't', 'v', 'u', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F',
                 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'V', 'U',
-                'W', 'X', 'Y', 'Z', '_', '$',
+                'W', 'X', 'Y', 'Z', '$',
             ];
             nanoid::nanoid!(10, &alphabet)
         }

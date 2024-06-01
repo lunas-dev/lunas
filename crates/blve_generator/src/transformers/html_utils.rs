@@ -393,12 +393,12 @@ fn set_id_for_needed_elm(
 
 // FIXME:カッコが複数でも、escapeTextは各バインディングに1つだけでいい
 // 具体例:
-// 現在:${escapeHtml(count.v+count.v)} count ${escapeHtml(count)} ${escapeHtml( count + count )}
-// 将来的:${escapeHtml(`${count.v+count.v} count ${count} ${ count + count }`)}
+// 現在:${__BLVE_ESCAPE_HTML(count.v+count.v)} count ${__BLVE_ESCAPE_HTML(count)} ${__BLVE_ESCAPE_HTML( count + count )}
+// 将来的:${__BLVE_ESCAPE_HTML(`${count.v+count.v} count ${count} ${ count + count }`)}
 
 // カッコが1つだけの場合、その部分のみをエスケープする
 // Give: <div>    ${count} </div>
-// Want: <div>    ${escapeHtml(count)} </div>
+// Want: <div>    ${__BLVE_ESCAPE_HTML(count)} </div>
 // TODO: count_of_bindingsの返却をやめる
 fn replace_text_with_reactive_value(
     code: &mut String,
@@ -438,6 +438,27 @@ fn replace_text_with_reactive_value(
     (depending_vars, count_of_bindings)
 }
 
+pub fn generate_set_component_statement(elm: &Element) -> String {
+    let mut code = String::new();
+    code.push_str("__BLVE_SET_COMPONENT_ELEMENT(`");
+    for child in &elm.children {
+        code.push_str(&child.to_string());
+    }
+    code.push_str("`, \"");
+    code.push_str(&elm.tag_name);
+    code.push_str("\"");
+    // code.push_str("\", {");
+    if elm.attributes.len() > 0 {
+        code.push_str(", {");
+        for (key, value) in &elm.attributes {
+            code.push_str(&format!("{}: \"{}\",", key, value.clone().unwrap()));
+        }
+        code.push('}');
+    }
+    code.push_str(");");
+    code
+}
+
 // TODO: テストを別ファイルに移動する
 #[cfg(test)]
 mod tests {
@@ -445,24 +466,24 @@ mod tests {
 
     #[test]
     fn exploration() {
-        let code = "escapeHtml(count2.v+count.v)";
+        let code = "__BLVE_ESCAPE_HTML(count2.v+count.v)";
         let mut code = code.clone().to_string();
         replace_text_with_reactive_value(
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
         );
-        assert_eq!(code, "escapeHtml(count2.v+count.v)");
+        assert_eq!(code, "__BLVE_ESCAPE_HTML(count2.v+count.v)");
     }
 
     #[test]
     fn exploration2() {
-        let code = "escapeHtml( count2.v + count.v )";
+        let code = "__BLVE_ESCAPE_HTML( count2.v + count.v )";
         let mut code = code.clone().to_string();
         replace_text_with_reactive_value(
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
         );
-        assert_eq!(code, "escapeHtml( count2.v + count.v )");
+        assert_eq!(code, "__BLVE_ESCAPE_HTML( count2.v + count.v )");
     }
 
     #[test]
@@ -472,13 +493,13 @@ mod tests {
         replace_text_with_reactive_value(&mut code, &vec!["interval".to_string()]);
         assert_eq!(
             code,
-            "${escapeHtml(interval.v == null ? 'start' : 'clear')}"
+            "${__BLVE_ESCAPE_HTML(interval.v == null ? 'start' : 'clear')}"
         );
     }
 }
 
 fn escape_html(s: &str) -> String {
-    format!("escapeHtml({})", s)
+    format!("__BLVE_ESCAPE_HTML({})", s)
 }
 
 fn find_reactive_attr_from_id<'a>(

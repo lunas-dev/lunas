@@ -91,13 +91,13 @@ fn find_variable_declarations(
                                 str_positions.push(TransformInfo::AddStringToPosition(
                                     AddStringToPosition {
                                         position: (start.as_u64().unwrap() - 1) as u32,
-                                        string: "reactiveValue(".to_string(),
+                                        string: "__BLVE_REACTIVE(".to_string(),
                                     },
                                 ));
                                 str_positions.push(TransformInfo::AddStringToPosition(
                                     AddStringToPosition {
                                         position: (end.as_u64().unwrap() - 1) as u32,
-                                        string: format!(", {}, refs)", variable_num),
+                                        string: format!(")"),
                                     },
                                 ));
                             }

@@ -11,7 +11,10 @@ use crate::{
         },
         transform_targets::{sort_elm_and_reactive_info, NodeAndReactiveInfo},
     },
-    transformers::{html_utils::check_html_elms, js_utils::analyze_js},
+    transformers::{
+        html_utils::{check_html_elms, generate_set_component_statement},
+        js_utils::analyze_js,
+    },
 };
 
 pub fn generate_js_from_blocks(
@@ -65,16 +68,21 @@ pub fn generate_js_from_blocks(
     sort_if_blocks(&mut if_blocks_info);
     sort_elm_and_reactive_info(&mut elm_and_var_relation);
 
-    let html_str = new_node.to_string();
+    // TODO: reconsider about this unwrap
+    let new_elm = match new_node.content {
+        NodeContent::Element(elm) => elm,
+        _ => panic!(),
+    };
 
     // Generate JavaScript
-    let html_insert = format!("elm.innerHTML = `{}`;", html_str);
+    let html_insert = generate_set_component_statement(&new_elm);
 
     let mut txt_node_renderer = TextNodeRendererGroup::new(&if_blocks_info, &text_node_renderer);
     let create_anchor_statements = gen_create_anchor_statements(&mut txt_node_renderer, &vec![]);
     let ref_getter_expression = gen_ref_getter_from_needed_ids(&needed_id);
     let event_listener_codes = create_event_listener(action_and_target);
-    let mut codes = vec![js_output, html_insert, ref_getter_expression];
+    let mut codes = vec![js_output, html_insert];
+    let mut after_mount_codes = vec![ref_getter_expression];
 
     // TODO:他の処理同様、ここも関数に切り出す
     if if_blocks_info.len() > 0 {
@@ -97,22 +105,39 @@ pub fn generate_js_from_blocks(
             let decl = format!(
                 "let {};",
                 itertools::join(
-                    variables_to_declare.iter().map(|v| format!("{}Ref", v)),
+                    variables_to_declare
+                        .iter()
+                        .map(|v| format!("__BLVE_{}_REF", v)),
                     ", "
                 )
             );
-            codes.push(decl);
+            after_mount_codes.push(decl);
         }
     }
 
-    codes.extend(create_anchor_statements);
-    codes.extend(event_listener_codes);
+    after_mount_codes.extend(create_anchor_statements);
+    after_mount_codes.extend(event_listener_codes);
     let render_if = gen_render_if_statements(&if_blocks_info, &needed_id);
-    codes.extend(render_if);
-    codes.push("refs[4] = 0".to_string());
+    after_mount_codes.extend(render_if);
+    after_mount_codes.push("this.blkUpdateMap = 0".to_string());
     let update_func_code =
         gen_update_func_statement(elm_and_var_relation, variables, if_blocks_info);
-    codes.push(update_func_code);
+    after_mount_codes.push(update_func_code);
+    let after_mount_code = after_mount_codes
+        .iter()
+        .map(|c| create_indent(c))
+        .collect::<Vec<String>>()
+        .join("\n");
+    let after_mount_func_code = format!(
+        r#"__BLVE_AFTER_MOUNT(function () {{
+{}
+}});
+"#,
+        after_mount_code
+    );
+    codes.push(after_mount_func_code);
+    codes.push("return __BLVE_COMPONENT_RETURN;".to_string());
+
     let full_code = gen_full_code(no_export, runtime_path, imports_string, codes);
     let css_code = blocks.detailed_language_blocks.css.clone();
 
@@ -138,10 +163,10 @@ fn gen_full_code(
         .collect::<Vec<String>>()
         .join("\n");
     format!(
-        r#"import {{ reactiveValue, getElmRefs, addEvListener, genUpdateFunc, escapeHtml, replaceInnerText, replaceText, replaceAttr, insertEmpty,insertContent }} from '{}'{}
+        r#"import {{ __BLVE_ADD_EV_LISTENER, __BLVE_ESCAPE_HTML, __BLVE_GET_ELM_REFS, __BLVE_INIT_COMPONENT, __BLVE_REPLACE_INNER_HTML, __BLVE_REPLACE_TEXT, __BLVE_REPLACE_ATTR, __BLVE_INSERT_EMPTY, __BLVE_INSERT_CONTENT }} from "{}";{}
 
-{}function(elm) {{
-    const refs = [null, false, 0, 0, 0];
+{}function() {{
+    const {{ __BLVE_SET_COMPONENT_ELEMENT, __BLVE_UPDATE_COMPONENT, __BLVE_COMPONENT_RETURN, __BLVE_AFTER_MOUNT, __BLVE_REACTIVE }} = __BLVE_INIT_COMPONENT();
 {}
 }}"#,
         runtime_path, imports_string, func_decl, code,
@@ -173,12 +198,12 @@ fn gen_ref_getter_from_needed_ids(needed_ids: &Vec<NeededIdName>) -> String {
         needed_ids
             .iter()
             .filter(|id: &&NeededIdName| id.ctx.len() == 0)
-            .map(|id| format!("{}Ref", id.node_id))
+            .map(|id| format!("__BLVE_{}_REF", id.node_id))
             .collect::<Vec<String>>()
             .join(", ")
             .as_str(),
     );
-    ref_getter_str.push_str("] = getElmRefs([");
+    ref_getter_str.push_str("] = __BLVE_GET_ELM_REFS([");
     ref_getter_str.push_str(
         needed_ids
             .iter()
@@ -212,7 +237,7 @@ fn create_event_listener(actions_and_targets: Vec<ActionAndTarget>) -> Vec<Strin
     let mut result = vec![];
     for action_and_target in actions_and_targets {
         result.push(format!(
-            "addEvListener({}Ref, \"{}\", {});",
+            "__BLVE_ADD_EV_LISTENER(__BLVE_{}_REF, \"{}\", {});",
             action_and_target.target,
             action_and_target.action_name,
             action_and_target.action.to_string()
@@ -231,7 +256,7 @@ fn gen_update_func_statement(
     for (index, if_block_info) in if_blocks_infos.iter().enumerate() {
         let if_blk_rendering_cond = if if_block_info.ctx.len() != 0 {
             format!(
-                "(!((refs[3] & {0}) ^ {0})) && ",
+                "(!((this.blkRenderedMap & {0}) ^ {0})) && ",
                 if_block_info.generate_ctx_num(&if_blocks_infos)
             )
         } else {
@@ -256,14 +281,14 @@ fn gen_update_func_statement(
         let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
 
         replace_statements.push(format!(
-            "{}refs[2] & {} && ( {} ? {} : ({}, {}, {}) );",
+            "{}this.valUpdateMap & {} && ( {} ? {} : ({}, {}, {}) );",
             if_blk_rendering_cond,
             combined_number,
             if_block_info.condition,
-            format!("render{}Elm()", &if_block_info.if_block_id),
-            format!("{}Ref.remove()", &if_block_info.if_block_id),
-            format!("{}Ref = null", &if_block_info.if_block_id),
-            format!("refs[3] ^= {}", index + 1),
+            format!("__BLVE_RENDER_{}_ELM()", &if_block_info.if_block_id),
+            format!("__BLVE_{}_REF.remove()", &if_block_info.if_block_id),
+            format!("__BLVE_{}_REF = null", &if_block_info.if_block_id),
+            format!("this.blkRenderedMap ^= {}", index + 1),
         ));
     }
 
@@ -286,7 +311,7 @@ fn gen_update_func_statement(
 
                     let if_blk_rendering_cond = if elm_and_attr_relation.ctx.len() != 0 {
                         format!(
-                            "(!((refs[3] & {0}) ^ {0})) && ",
+                            "(!((this.blkRenderedMap & {0}) ^ {0})) && ",
                             _elm_and_attr_relation.generate_ctx_num(&if_blocks_infos)
                         )
                     } else {
@@ -294,7 +319,7 @@ fn gen_update_func_statement(
                     };
 
                     replace_statements.push(format!(
-                        "{}refs[2] & {:?} && replaceAttr(\"{}\", {}, {}Ref);",
+                        "{}this.valUpdateMap & {:?} && __BLVE_REPLACE_ATTR(\"{}\", {}, __BLVE_{}_REF);",
                         if_blk_rendering_cond,
                         get_combined_binary_number(dep_vars_assined_numbers),
                         c.attribute_key,
@@ -322,7 +347,7 @@ fn gen_update_func_statement(
 
                 let if_blk_rendering_cond = if under_if_blk {
                     format!(
-                        "(!((refs[3] & {0}) ^ {0})) && ",
+                        "(!((this.blkRenderedMap & {0}) ^ {0})) && ",
                         elm_and_variable_relation.generate_ctx_num(&if_blocks_infos)
                     )
                 } else {
@@ -333,16 +358,16 @@ fn gen_update_func_statement(
 
                 let to_update_cond = if under_if_blk {
                     format!(
-                        "(refs[2] & {:?} && ((refs[4] & {1}) ^ {1}) )",
+                        "(this.valUpdateMap & {:?} && ((this.blkUpdateMap & {1}) ^ {1}) )",
                         combined_number,
                         elm_and_variable_relation.generate_ctx_num(&if_blocks_infos)
                     )
                 } else {
-                    format!("refs[2] & {:?}", combined_number)
+                    format!("this.valUpdateMap & {:?}", combined_number)
                 };
 
                 replace_statements.push(format!(
-                    "{}{} && replaceInnerText(`{}`, {}Ref);",
+                    "{}{} && __BLVE_REPLACE_TEXT(`{}`, __BLVE_{}_REF);",
                     if_blk_rendering_cond,
                     to_update_cond,
                     elm_and_variable_relation.content_of_element.trim(),
@@ -370,7 +395,7 @@ fn gen_update_func_statement(
 
                 let if_blk_rendering_cond = if under_if_blk {
                     format!(
-                        "(!((refs[3] & {0}) ^ {0})) && ",
+                        "(!((this.blkRenderedMap & {0}) ^ {0})) && ",
                         txt_and_var_content.generate_ctx_num(&if_blocks_infos)
                     )
                 } else {
@@ -381,12 +406,12 @@ fn gen_update_func_statement(
 
                 let to_update_cond = if under_if_blk {
                     format!(
-                        "(refs[2] & {:?} && ((refs[4] & {1}) ^ {1}) )",
+                        "(this.valUpdateMap & {:?} && ((this.blkUpdateMap & {1}) ^ {1}) )",
                         combined_number,
                         txt_and_var_content.generate_ctx_num(&if_blocks_infos)
                     )
                 } else {
-                    format!("refs[2] & {:?}", combined_number)
+                    format!("this.valUpdateMap & {:?}", combined_number)
                 };
 
                 replace_statements.push(format!(
@@ -407,7 +432,7 @@ fn gen_update_func_statement(
         .join("\n");
 
     let result = format!(
-        r#"refs[0] = genUpdateFunc(() => {{
+        r#"__BLVE_UPDATE_COMPONENT(function () {{
 {code}
 }});"#,
         code = code
@@ -429,11 +454,11 @@ fn gen_create_anchor_statements(
                     continue;
                 }
                 let anchor_id = match &txt_renderer.target_anchor_id {
-                    Some(anchor_id) => format!("{}Ref", anchor_id),
+                    Some(anchor_id) => format!("__BLVE_{}_REF", anchor_id),
                     None => "null".to_string(),
                 };
                 let create_anchor_statement = format!(
-                    "const {}Text = insertContent(`{}`,{}Ref,{});",
+                    "const {}Text = insertContent(`{}`,__BLVE_{}_REF,{});",
                     &txt_renderer.text_node_id,
                     &txt_renderer.content.trim(),
                     &txt_renderer.parent_id,
@@ -448,11 +473,11 @@ fn gen_create_anchor_statements(
                             continue;
                         }
                         let anchor_id = match &if_block.target_anchor_id {
-                            Some(anchor_id) => format!("{}Ref", anchor_id),
+                            Some(anchor_id) => format!("__BLVE_{}_REF", anchor_id),
                             None => "null".to_string(),
                         };
                         let create_anchor_statement = format!(
-                            "const {}Anchor = insertEmpty({}Ref,{});",
+                            "const __BLVE_{}_Anchor = __BLVE_INSERT_EMPTY(__BLVE_{}_REF,{});",
                             if_block.if_block_id, if_block.parent_id, anchor_id
                         );
                         create_anchor_statements.push(create_anchor_statement);
@@ -478,17 +503,20 @@ fn gen_render_if_statements(
         };
         let insert_elm = match if_block.distance_to_next_elm > 1 {
             true => format!(
-                "{}Ref.insertBefore({}, {}Anchor);",
+                "__BLVE_{}_REF.insertBefore({}, __BLVE_{}_Anchor);",
                 if_block.parent_id, name, if_block.if_block_id
             ),
             false => match if_block.target_anchor_id {
                 Some(_) => format!(
-                    "{}Ref.insertBefore({}, {}Ref);",
+                    "__BLVE_{}_REF.insertBefore({}, __BLVE_{}_REF);",
                     if_block.parent_id,
                     name,
                     if_block.target_anchor_id.as_ref().unwrap().clone()
                 ),
-                None => format!("{}Ref.insertBefore({}, null);", if_block.parent_id, name),
+                None => format!(
+                    "__BLVE_{}_REF.insertBefore({}, null);",
+                    if_block.parent_id, name
+                ),
             },
         };
 
@@ -510,12 +538,12 @@ fn gen_render_if_statements(
             ref_getter_str.push_str(
                 filtered
                     .clone()
-                    .map(|id| format!("{}Ref", id.node_id))
+                    .map(|id| format!("__BLVE_{}_REF", id.node_id))
                     .collect::<Vec<String>>()
                     .join(", ")
                     .as_str(),
             );
-            ref_getter_str.push_str("] = getElmRefs([");
+            ref_getter_str.push_str("] = __BLVE_GET_ELM_REFS([");
             ref_getter_str.push_str(
                 filtered
                     .clone()
@@ -544,7 +572,7 @@ fn gen_render_if_statements(
             let mut child_block_rendering_exec = vec![];
             for child_if in children {
                 child_block_rendering_exec.push(format!(
-                    "{} && render{}Elm()",
+                    "{} && __BLVE_RENDER_{}_ELM()",
                     child_if.condition, &child_if.if_block_id
                 ));
             }
@@ -564,7 +592,7 @@ fn gen_render_if_statements(
         let blk_num: u64 = (2 as u64).pow(index as u32);
         // TODO: {}の前後に改行があったりなかったりするので、統一する
         render_if.push(format!(
-            r#"const render{}Elm = () => {{
+            r#"const __BLVE_RENDER_{}_ELM = () => {{
 {}
 {}
 {}{}{}
@@ -572,13 +600,19 @@ fn gen_render_if_statements(
             &if_block.if_block_id,
             js_gen_elm_code,
             create_indent(insert_elm.as_str()),
-            create_indent(format!("refs[3] |= {}, refs[4] |= {};", blk_num, blk_num).as_str()),
+            create_indent(
+                format!(
+                    "this.blkRenderedMap |= {}, this.blkUpdateMap |= {};",
+                    blk_num, blk_num
+                )
+                .as_str()
+            ),
             create_indent(ref_getter_str.as_str()),
             create_indent(child_block_rendering_exec.as_str())
         ));
         if if_block.ctx.len() == 0 {
             render_if.push(format!(
-                "{} && render{}Elm()",
+                "{} && __BLVE_RENDER_{}_ELM()",
                 if_block.condition, &if_block.if_block_id
             ));
         }
