@@ -60,7 +60,7 @@ impl Element {
     }
 
     pub fn generate_element_on_js(&self, if_block_name: &String) -> (String, Vec<String>) {
-        let elm_name = format!("{}Ref", if_block_name);
+        let elm_name = format!("__BLVE_{}_REF", if_block_name);
         let mut js_code = vec![format!(
             "{} = document.createElement(\"{}\");\n",
             elm_name, self.tag_name
@@ -82,7 +82,7 @@ impl Element {
                 child_str.push_str(child.to_string().as_str());
             }
             js_code.push(format!(
-                "{}Ref.innerHTML = `{}`;\n",
+                "__BLVE_{}_REF.innerHTML = `{}`;\n",
                 if_block_name, child_str
             ));
         }
