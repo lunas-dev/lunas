@@ -1,13 +1,13 @@
 use std::collections::HashSet;
 
-use blve_parser::DetailedBlock;
+use blve_parser::{DetailedBlock, DetailedMetaData, UseComponentStatement};
 
 use crate::{
     orig_html_struct::structs::{Node, NodeContent},
     structs::{
         transform_info::{
-            sort_if_blocks, ActionAndTarget, IfBlockInfo, NeededIdName, TextNodeRendererGroup,
-            VariableNameAndAssignedNumber,
+            sort_if_blocks, ActionAndTarget, CustomComponentBlockInfo, IfBlockInfo, NeededIdName,
+            TextNodeRendererGroup, VariableNameAndAssignedNumber,
         },
         transform_targets::{sort_elm_and_reactive_info, NodeAndReactiveInfo},
     },
@@ -20,8 +20,23 @@ use crate::{
 pub fn generate_js_from_blocks(
     blocks: &DetailedBlock,
     no_export: Option<bool>,
+    export_name: Option<String>,
     runtime_path: Option<String>,
 ) -> Result<(String, Option<String>), String> {
+    let use_component_statements = blocks
+        .detailed_meta_data
+        .iter()
+        .filter_map(|meta_data| match meta_data {
+            DetailedMetaData::UseComponentStatement(use_component) => Some(use_component),
+            _ => None,
+        })
+        .collect::<Vec<&UseComponentStatement>>();
+
+    let component_names = use_component_statements
+        .iter()
+        .map(|use_component| use_component.component_name.clone())
+        .collect::<Vec<String>>();
+
     let no_export = match no_export.is_none() {
         true => false,
         false => no_export.unwrap(),
@@ -31,7 +46,14 @@ pub fn generate_js_from_blocks(
         false => runtime_path.unwrap(),
     };
 
-    let (variables, variable_names, imports, js_output) = analyze_js(blocks);
+    let (variables, variable_names, mut imports, js_output) = analyze_js(blocks);
+
+    for use_component in use_component_statements {
+        imports.push(format!(
+            "import {} from \"{}\";",
+            use_component.component_name, use_component.component_path
+        ));
+    }
 
     let imports_string = imports
         .iter()
@@ -45,6 +67,7 @@ pub fn generate_js_from_blocks(
     let mut elm_and_var_relation = vec![];
     let mut action_and_target = vec![];
     let mut if_blocks_info = vec![];
+    let mut custom_component_blocks_info = vec![];
     let mut text_node_renderer = vec![];
 
     let mut new_node = Node::new_from_dom(&blocks.detailed_language_blocks.dom)?;
@@ -52,6 +75,7 @@ pub fn generate_js_from_blocks(
     // Analyze HTML
     check_html_elms(
         &variable_names,
+        &component_names,
         &mut new_node,
         &mut needed_id,
         &mut elm_and_var_relation,
@@ -59,6 +83,7 @@ pub fn generate_js_from_blocks(
         None,
         &mut vec![],
         &mut if_blocks_info,
+        &mut custom_component_blocks_info,
         &mut text_node_renderer,
         &vec![],
         &vec![0],
@@ -77,8 +102,12 @@ pub fn generate_js_from_blocks(
     // Generate JavaScript
     let html_insert = generate_set_component_statement(&new_elm);
 
-    let mut txt_node_renderer = TextNodeRendererGroup::new(&if_blocks_info, &text_node_renderer);
-    let create_anchor_statements = gen_create_anchor_statements(&mut txt_node_renderer, &vec![]);
+    let txt_node_renderer = TextNodeRendererGroup::new(
+        &if_blocks_info,
+        &text_node_renderer,
+        &custom_component_blocks_info,
+    );
+    let create_anchor_statements = gen_create_anchor_statements(&txt_node_renderer, &vec![]);
     let ref_getter_expression = gen_ref_getter_from_needed_ids(&needed_id);
     let event_listener_codes = create_event_listener(action_and_target);
     let mut codes = vec![js_output, html_insert];
@@ -118,7 +147,9 @@ pub fn generate_js_from_blocks(
     after_mount_codes.extend(create_anchor_statements);
     after_mount_codes.extend(event_listener_codes);
     let render_if = gen_render_if_statements(&if_blocks_info, &needed_id);
+    let render_component = gen_render_custom_component_statements(&custom_component_blocks_info);
     after_mount_codes.extend(render_if);
+    after_mount_codes.extend(render_component);
     after_mount_codes.push("this.blkUpdateMap = 0".to_string());
     let update_func_code =
         gen_update_func_statement(elm_and_var_relation, variables, if_blocks_info);
@@ -138,7 +169,7 @@ pub fn generate_js_from_blocks(
     codes.push(after_mount_func_code);
     codes.push("return __BLVE_COMPONENT_RETURN;".to_string());
 
-    let full_code = gen_full_code(no_export, runtime_path, imports_string, codes);
+    let full_code = gen_full_code(no_export, export_name, runtime_path, imports_string, codes);
     let css_code = blocks.detailed_language_blocks.css.clone();
 
     Ok((full_code, css_code))
@@ -146,12 +177,13 @@ pub fn generate_js_from_blocks(
 
 fn gen_full_code(
     no_export: bool,
+    export_name: Option<String>,
     runtime_path: String,
     imports_string: String,
     codes: Vec<String>,
 ) -> String {
     let func_decl = if no_export {
-        "const App = ".to_string()
+        format!("const {} = ", export_name.unwrap_or("App".to_string()))
     } else {
         "export default ".to_string()
     };
@@ -442,11 +474,10 @@ fn gen_update_func_statement(
 }
 
 fn gen_create_anchor_statements(
-    text_node_renderer: &mut TextNodeRendererGroup,
+    text_node_renderer: &TextNodeRendererGroup,
     ctx_condition: &Vec<String>,
 ) -> Vec<String> {
     let mut create_anchor_statements = vec![];
-    text_node_renderer.sort_by_rendering_order();
     for render in &text_node_renderer.renderers {
         match render {
             crate::structs::transform_info::TextNodeRenderer::ManualRenderer(txt_renderer) => {
@@ -458,7 +489,7 @@ fn gen_create_anchor_statements(
                     None => "null".to_string(),
                 };
                 let create_anchor_statement = format!(
-                    "const {}Text = insertContent(`{}`,__BLVE_{}_REF,{});",
+                    "const {}Text = __BLVE_INSERT_CONTENT(`{}`,__BLVE_{}_REF,{});",
                     &txt_renderer.text_node_id,
                     &txt_renderer.content.trim(),
                     &txt_renderer.parent_id,
@@ -485,11 +516,33 @@ fn gen_create_anchor_statements(
                     false => {}
                 }
             }
+            crate::structs::transform_info::TextNodeRenderer::CustomComponentRenderer(
+                custom_component,
+            ) => match custom_component.distance_to_next_elm > 1 {
+                true => {
+                    if &custom_component.ctx != ctx_condition {
+                        continue;
+                    }
+                    let anchor_id = match &custom_component.target_anchor_id {
+                        Some(anchor_id) => format!("__BLVE_{}_REF", anchor_id),
+                        None => "null".to_string(),
+                    };
+                    let create_anchor_statement = format!(
+                        "const __BLVE_{}_Anchor = __BLVE_INSERT_EMPTY(__BLVE_{}_REF,{});",
+                        custom_component.custom_component_block_id,
+                        custom_component.parent_id,
+                        anchor_id
+                    );
+                    create_anchor_statements.push(create_anchor_statement);
+                }
+                false => {}
+            },
         }
     }
     create_anchor_statements
 }
 
+// TODO: Many of the following functions are similar to top-level component creation functions, such as creating refs and rendering if statements. Consider refactoring them into a single function.
 fn gen_render_if_statements(
     if_block_info: &Vec<IfBlockInfo>,
     needed_ids: &Vec<NeededIdName>,
@@ -618,6 +671,68 @@ fn gen_render_if_statements(
         }
     }
     render_if
+}
+
+fn gen_render_custom_component_statements(
+    custom_component_block_info: &Vec<CustomComponentBlockInfo>,
+) -> Vec<String> {
+    let mut render_custom_statements = vec![];
+
+    /* let insert_elm = match if_block.distance_to_next_elm > 1 {
+        true => format!(
+            "__BLVE_{}_REF.insertBefore({}, __BLVE_{}_Anchor);",
+            if_block.parent_id, name, if_block.if_block_id
+        ),
+        false => match if_block.target_anchor_id {
+            Some(_) => format!(
+                "__BLVE_{}_REF.insertBefore({}, __BLVE_{}_REF);",
+                if_block.parent_id,
+                name,
+                if_block.target_anchor_id.as_ref().unwrap().clone()
+            ),
+            None => format!(
+                "__BLVE_{}_REF.insertBefore({}, null);",
+                if_block.parent_id, name
+            ),
+        },
+    }; */
+
+    for custom_component_block in custom_component_block_info.iter() {
+        if custom_component_block.have_sibling_elm {
+            match custom_component_block.distance_to_next_elm > 1 {
+                true => {
+                    render_custom_statements.push(format!(
+                        "const __BLVE_{}_COMP = {}().insertBefore(__BLVE_{}_REF, __BLVE_{}_Anchor);",
+                        custom_component_block.custom_component_block_id,
+                        custom_component_block.component_name,
+                        custom_component_block.parent_id,
+                        custom_component_block.custom_component_block_id
+                    ));
+                }
+                false => {
+                    let anchor_ref_name = match &custom_component_block.target_anchor_id {
+                        Some(anchor_id) => format!("__BLVE_{}_REF", anchor_id),
+                        None => "null".to_string(),
+                    };
+                    render_custom_statements.push(format!(
+                        "const __BLVE_{}_COMP = {}().insertBefore(__BLVE_{}_REF, {});",
+                        custom_component_block.custom_component_block_id,
+                        custom_component_block.component_name,
+                        custom_component_block.parent_id,
+                        anchor_ref_name
+                    ));
+                }
+            }
+        } else {
+            render_custom_statements.push(format!(
+                "const __BLVE_{}_COMP = {}().mount(__BLVE_{}_REF);",
+                custom_component_block.custom_component_block_id,
+                custom_component_block.component_name,
+                custom_component_block.parent_id
+            ));
+        }
+    }
+    render_custom_statements
 }
 
 /// Returns a binary number that is the result of ORing all the numbers in the argument.

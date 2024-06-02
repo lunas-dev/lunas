@@ -10,8 +10,9 @@ extern crate lazy_static;
 pub fn blve_compile_from_block(
     b: &DetailedBlock,
     no_export: Option<bool>,
+    export_name: Option<String>,
     runtime_path: Option<String>,
 ) -> Result<(String, Option<String>), String> {
-    let compiled_code = generate_js_from_blocks(b, no_export, runtime_path);
+    let compiled_code = generate_js_from_blocks(b, no_export, export_name, runtime_path);
     compiled_code
 }

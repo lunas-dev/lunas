@@ -128,6 +128,20 @@ pub fn sort_if_blocks(if_blocks: &mut Vec<IfBlockInfo>) {
 }
 
 #[derive(Debug, Clone)]
+pub struct CustomComponentBlockInfo {
+    pub parent_id: String,
+    pub target_if_blk_id: String,
+    pub distance_to_next_elm: u64,
+    pub have_sibling_elm: bool,
+    pub target_anchor_id: Option<String>,
+    pub component_name: String,
+    pub ref_text_node_id: Option<String>,
+    pub ctx: Vec<String>,
+    pub custom_component_block_id: String,
+    pub element_location: Vec<usize>,
+}
+
+#[derive(Debug, Clone)]
 pub struct ManualRendererForTextNode {
     pub parent_id: String,
     pub text_node_id: String,
@@ -142,6 +156,7 @@ pub struct ManualRendererForTextNode {
 pub enum TextNodeRenderer {
     ManualRenderer(ManualRendererForTextNode),
     IfBlockRenderer(IfBlockInfo),
+    CustomComponentRenderer(CustomComponentBlockInfo),
 }
 
 impl TextNodeRenderer {
@@ -149,6 +164,7 @@ impl TextNodeRenderer {
         match self {
             TextNodeRenderer::ManualRenderer(renderer) => &renderer.element_location,
             TextNodeRenderer::IfBlockRenderer(renderer) => &renderer.element_location,
+            TextNodeRenderer::CustomComponentRenderer(renderer) => &renderer.element_location,
         }
     }
 }
@@ -167,6 +183,7 @@ impl TextNodeRendererGroup {
     pub fn new(
         if_blk: &Vec<IfBlockInfo>,
         text_node_renderer: &Vec<ManualRendererForTextNode>,
+        custom_component_block: &Vec<CustomComponentBlockInfo>,
     ) -> Self {
         let mut renderers: Vec<TextNodeRenderer> = vec![];
         for if_blk in if_blk {
@@ -175,7 +192,14 @@ impl TextNodeRendererGroup {
         for txt_node_renderer in text_node_renderer {
             renderers.push(TextNodeRenderer::ManualRenderer(txt_node_renderer.clone()));
         }
+        for custom_component_block in custom_component_block {
+            renderers.push(TextNodeRenderer::CustomComponentRenderer(
+                custom_component_block.clone(),
+            ));
+        }
 
-        TextNodeRendererGroup { renderers }
+        let mut render_grp = TextNodeRendererGroup { renderers };
+        render_grp.sort_by_rendering_order();
+        render_grp
     }
 }
