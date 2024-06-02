@@ -508,7 +508,7 @@ fn gen_create_anchor_statements(
                             None => "null".to_string(),
                         };
                         let create_anchor_statement = format!(
-                            "const __BLVE_{}_Anchor = __BLVE_INSERT_EMPTY(__BLVE_{}_REF,{});",
+                            "const __BLVE_{}_ANCHOR = __BLVE_INSERT_EMPTY(__BLVE_{}_REF,{});",
                             if_block.if_block_id, if_block.parent_id, anchor_id
                         );
                         create_anchor_statements.push(create_anchor_statement);
@@ -528,7 +528,7 @@ fn gen_create_anchor_statements(
                         None => "null".to_string(),
                     };
                     let create_anchor_statement = format!(
-                        "const __BLVE_{}_Anchor = __BLVE_INSERT_EMPTY(__BLVE_{}_REF,{});",
+                        "const __BLVE_{}_ANCHOR = __BLVE_INSERT_EMPTY(__BLVE_{}_REF,{});",
                         custom_component.custom_component_block_id,
                         custom_component.parent_id,
                         anchor_id
@@ -556,7 +556,7 @@ fn gen_render_if_statements(
         };
         let insert_elm = match if_block.distance_to_next_elm > 1 {
             true => format!(
-                "__BLVE_{}_REF.insertBefore({}, __BLVE_{}_Anchor);",
+                "__BLVE_{}_REF.insertBefore({}, __BLVE_{}_ANCHOR);",
                 if_block.parent_id, name, if_block.if_block_id
             ),
             false => match if_block.target_anchor_id {
@@ -678,31 +678,12 @@ fn gen_render_custom_component_statements(
 ) -> Vec<String> {
     let mut render_custom_statements = vec![];
 
-    /* let insert_elm = match if_block.distance_to_next_elm > 1 {
-        true => format!(
-            "__BLVE_{}_REF.insertBefore({}, __BLVE_{}_Anchor);",
-            if_block.parent_id, name, if_block.if_block_id
-        ),
-        false => match if_block.target_anchor_id {
-            Some(_) => format!(
-                "__BLVE_{}_REF.insertBefore({}, __BLVE_{}_REF);",
-                if_block.parent_id,
-                name,
-                if_block.target_anchor_id.as_ref().unwrap().clone()
-            ),
-            None => format!(
-                "__BLVE_{}_REF.insertBefore({}, null);",
-                if_block.parent_id, name
-            ),
-        },
-    }; */
-
     for custom_component_block in custom_component_block_info.iter() {
         if custom_component_block.have_sibling_elm {
             match custom_component_block.distance_to_next_elm > 1 {
                 true => {
                     render_custom_statements.push(format!(
-                        "const __BLVE_{}_COMP = {}().insertBefore(__BLVE_{}_REF, __BLVE_{}_Anchor);",
+                        "const __BLVE_{}_COMP = {}().insertBefore(__BLVE_{}_REF, __BLVE_{}_ANCHOR);",
                         custom_component_block.custom_component_block_id,
                         custom_component_block.component_name,
                         custom_component_block.parent_id,
