@@ -127,7 +127,7 @@ pub fn generate_js_from_blocks(
     after_mount_codes.extend(render_component);
     after_mount_codes.push("this.blkUpdateMap = 0".to_string());
     let update_func_code =
-        gen_update_func_statement(elm_and_var_relation, variables, if_blocks_info);
+        gen_on_update_func(elm_and_var_relation, variables, if_blocks_info);
     after_mount_codes.push(update_func_code);
     let after_mount_code = after_mount_codes
         .iter()
@@ -262,7 +262,7 @@ fn create_event_listener(actions_and_targets: Vec<ActionAndTarget>) -> Vec<Strin
     result
 }
 
-fn gen_update_func_statement(
+fn gen_on_update_func(
     elm_and_variable_relations: Vec<NodeAndReactiveInfo>,
     variable_name_and_assigned_numbers: Vec<VariableNameAndAssignedNumber>,
     if_blocks_infos: Vec<IfBlockInfo>,
