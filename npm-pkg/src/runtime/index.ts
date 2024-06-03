@@ -4,7 +4,9 @@ export type BlveComponent = {
   blkRenderedMap: number;
   blkUpdateMap: number;
   internalElement: BlveInternalElement;
-  current_bit: number;
+  currentVarBit: number;
+  currentIfBlkBit: number;
+  ifBlkRenderers: { [key: string]: () => void };
   isMounted: boolean;
   // componentElmentSetter: (innerHtml: string, topElmTag: string,topElmAttr: {[key: string]: string}) => void
   __blve_update: () => void;
@@ -30,17 +32,30 @@ export const __BLVE_INIT_COMPONENT = function (this: BlveComponent) {
   this.valUpdateMap = 0;
   this.blkRenderedMap = 0;
   this.blkUpdateMap = 0;
-  this.current_bit = 0;
+  this.currentVarBit = 0;
+  this.currentIfBlkBit = 0;
   this.isMounted = false;
 
-  const genBit = function* (this: BlveComponent) {
+  const genBitOfVariables = function* (this: BlveComponent) {
     while (true) {
-      if (this.current_bit === 0) {
-        this.current_bit = 1;
-        yield this.current_bit;
+      if (this.currentVarBit === 0) {
+        this.currentVarBit = 1;
+        yield this.currentVarBit;
       } else {
-        this.current_bit <<= 1;
-        yield this.current_bit;
+        this.currentVarBit <<= 1;
+        yield this.currentVarBit;
+      }
+    }
+  }.bind(this);
+
+  const genBitOfIfBlks = function* (this: BlveComponent) {
+    while (true) {
+      if (this.currentVarBit === 0) {
+        this.currentVarBit = 1;
+        yield this.currentVarBit;
+      } else {
+        this.currentVarBit <<= 1;
+        yield this.currentVarBit;
       }
     }
   }.bind(this);
@@ -85,11 +100,7 @@ export const __BLVE_INIT_COMPONENT = function (this: BlveComponent) {
     anchor: HTMLElement | null
   ): BlveComponent {
     if (this.isMounted) throw new Error("Component is already mounted");
-    const componentElm = document.createElement(this.internalElement.topElmTag);
-    Object.keys(this.internalElement.topElmAttr).forEach((key) => {
-      componentElm.setAttribute(key, this.internalElement.topElmAttr[key]);
-    });
-    componentElm.innerHTML = this.internalElement.innerHtml;
+    const componentElm = createDomElementFromBlveElement(this.internalElement);
     elm.insertBefore(componentElm, anchor);
     this.__blve_after_mount();
     this.isMounted = true;
@@ -110,14 +121,38 @@ export const __BLVE_INIT_COMPONENT = function (this: BlveComponent) {
   }.bind(this);
 
   const createReactive = function <T>(this: BlveComponent, v: T) {
-    return new valueObj<T>(v, this, genBit().next().value);
+    return new valueObj<T>(v, this, genBitOfVariables().next().value);
   }.bind(this);
+
+  const createIfBlock = function (
+    this: BlveComponent,
+    name: string,
+    blveElement: BlveInternalElement,
+    parentElement: HTMLElement,
+    refElement: HTMLElement | null,
+    postRender: () => void
+  ) {
+    const ifBlkBit = genBitOfIfBlks().next().value;
+    this.ifBlkRenderers[name] = (() => {
+      const componentElm = createDomElementFromBlveElement(blveElement);
+      parentElement.insertBefore(componentElm, refElement);
+      postRender();
+      (this.blkRenderedMap |= ifBlkBit), (this.blkUpdateMap |= ifBlkBit);
+    }).bind(this);
+  }.bind(this);
+
+  const renderIfBlock = function (this: BlveComponent, name: string) {
+    if (!this.ifBlkRenderers[name]) return;
+    this.ifBlkRenderers[name]();
+  };
 
   return {
     __BLVE_SET_COMPONENT_ELEMENT: componentElementSetter,
     __BLVE_UPDATE_COMPONENT: updateComponent,
     __BLVE_AFTER_MOUNT: setAfterMount,
     __BLVE_REACTIVE: createReactive,
+    __BLVE_CREATE_IF_BLOCK: createIfBlock,
+    __BLVE_RENDER_IF_BLOCK: renderIfBlock,
     __BLVE_COMPONENT_RETURN: {
       mount,
       insertBefore,
@@ -215,3 +250,26 @@ export function __BLVE_INSERT_CONTENT(
   parent.insertBefore(contentNode, anchor);
   return contentNode;
 }
+
+export function __CREATE_BLVE_ELEMENT(
+  innerHtml: string,
+  topElmTag: string,
+  topElmAttr: { [key: string]: string }
+): BlveInternalElement {
+  return {
+    innerHtml,
+    topElmTag,
+    topElmAttr,
+  };
+}
+
+export const createDomElementFromBlveElement = function (
+  blveElement: BlveInternalElement
+): HTMLElement {
+  const componentElm = document.createElement(blveElement.topElmTag);
+  Object.keys(blveElement.topElmAttr).forEach((key) => {
+    componentElm.setAttribute(key, blveElement.topElmAttr[key]);
+  });
+  componentElm.innerHTML = blveElement.innerHtml;
+  return componentElm;
+};

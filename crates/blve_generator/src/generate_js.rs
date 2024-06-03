@@ -126,8 +126,7 @@ pub fn generate_js_from_blocks(
     let render_component = gen_render_custom_component_statements(&custom_component_blocks_info);
     after_mount_codes.extend(render_component);
     after_mount_codes.push("this.blkUpdateMap = 0".to_string());
-    let update_func_code =
-        gen_on_update_func(elm_and_var_relation, variables, if_blocks_info);
+    let update_func_code = gen_on_update_func(elm_and_var_relation, variables, if_blocks_info);
     after_mount_codes.push(update_func_code);
     let after_mount_code = after_mount_codes
         .iter()
@@ -171,10 +170,10 @@ fn gen_full_code(
         .collect::<Vec<String>>()
         .join("\n");
     format!(
-        r#"import {{ __BLVE_ADD_EV_LISTENER, __BLVE_ESCAPE_HTML, __BLVE_GET_ELM_REFS, __BLVE_INIT_COMPONENT, __BLVE_REPLACE_INNER_HTML, __BLVE_REPLACE_TEXT, __BLVE_REPLACE_ATTR, __BLVE_INSERT_EMPTY, __BLVE_INSERT_CONTENT }} from "{}";{}
+        r#"import {{ __BLVE_ADD_EV_LISTENER, __BLVE_ESCAPE_HTML, __BLVE_GET_ELM_REFS, __BLVE_INIT_COMPONENT, __BLVE_REPLACE_INNER_HTML, __BLVE_REPLACE_TEXT, __BLVE_REPLACE_ATTR, __BLVE_INSERT_EMPTY, __BLVE_INSERT_CONTENT, __CREATE_BLVE_ELEMENT }} from "{}";{}
 
 {}function() {{
-    const {{ __BLVE_SET_COMPONENT_ELEMENT, __BLVE_UPDATE_COMPONENT, __BLVE_COMPONENT_RETURN, __BLVE_AFTER_MOUNT, __BLVE_REACTIVE }} = __BLVE_INIT_COMPONENT();
+    const {{ __BLVE_SET_COMPONENT_ELEMENT, __BLVE_UPDATE_COMPONENT, __BLVE_COMPONENT_RETURN, __BLVE_AFTER_MOUNT, __BLVE_REACTIVE, __BLVE_RENDER_IF_BLOCK, __BLVE_CREATE_IF_BLOCK }} = __BLVE_INIT_COMPONENT();
 {}
 }}"#,
         runtime_path, imports_string, func_decl, code,
