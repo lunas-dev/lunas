@@ -105,7 +105,6 @@ export const __BLVE_INIT_COMPONENT = function (this: BlveComponent) {
       updateFunc.call(this);
       this.updatedFlag = false;
       this.valUpdateMap = 0;
-      this.blkRenderedMap = 0;
       this.blkUpdateMap = 0;
     }).bind(this);
   }.bind(this);
