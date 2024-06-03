@@ -1,4 +1,5 @@
 mod generate_js;
+mod generate_statements;
 mod orig_html_struct;
 mod structs;
 mod transformers;

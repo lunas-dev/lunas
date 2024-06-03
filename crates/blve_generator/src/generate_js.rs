@@ -1,8 +1,11 @@
+use blve_parser::{DetailedBlock, DetailedMetaData, UseComponentStatement};
 use std::collections::HashSet;
 
-use blve_parser::{DetailedBlock, DetailedMetaData, UseComponentStatement};
-
 use crate::{
+    generate_statements::{
+        gen_if_blk::gen_render_if_blk_func,
+        utils::{create_indent, gen_binary_map_from_bool},
+    },
     orig_html_struct::structs::{Node, NodeContent},
     structs::{
         transform_info::{
@@ -101,54 +104,26 @@ pub fn generate_js_from_blocks(
 
     // Generate JavaScript
     let html_insert = generate_set_component_statement(&new_elm);
+    let mut codes = vec![js_output, html_insert];
 
+    // Generate AfterMount
+    let mut after_mount_codes = vec![];
+    let ref_getter_expression = gen_ref_getter_from_needed_ids(&needed_id);
+    after_mount_codes.push(ref_getter_expression);
+    let if_block_refs = generate_if_block_ref_var_decl(&if_blocks_info, &needed_id);
+    after_mount_codes.extend(if_block_refs);
     let txt_node_renderer = TextNodeRendererGroup::new(
         &if_blocks_info,
         &text_node_renderer,
         &custom_component_blocks_info,
     );
     let create_anchor_statements = gen_create_anchor_statements(&txt_node_renderer, &vec![]);
-    let ref_getter_expression = gen_ref_getter_from_needed_ids(&needed_id);
-    let event_listener_codes = create_event_listener(action_and_target);
-    let mut codes = vec![js_output, html_insert];
-    let mut after_mount_codes = vec![ref_getter_expression];
-
-    // TODO:他の処理同様、ここも関数に切り出す
-    if if_blocks_info.len() > 0 {
-        let mut variables_to_declare = HashSet::new();
-        for if_block_info in &if_blocks_info {
-            variables_to_declare.insert(if_block_info.if_block_id.clone());
-            let new_ctx_under_if = {
-                let mut ctx = if_block_info.ctx.clone();
-                ctx.push(if_block_info.if_block_id.clone());
-                ctx
-            };
-            for needed_id in needed_id.iter() {
-                if needed_id.ctx == new_ctx_under_if {
-                    variables_to_declare.insert(needed_id.node_id.clone());
-                }
-            }
-        }
-
-        if variables_to_declare.len() != 0 {
-            let decl = format!(
-                "let {};",
-                itertools::join(
-                    variables_to_declare
-                        .iter()
-                        .map(|v| format!("__BLVE_{}_REF", v)),
-                    ", "
-                )
-            );
-            after_mount_codes.push(decl);
-        }
-    }
-
     after_mount_codes.extend(create_anchor_statements);
+    let event_listener_codes = create_event_listener(action_and_target);
     after_mount_codes.extend(event_listener_codes);
-    let render_if = gen_render_if_statements(&if_blocks_info, &needed_id);
-    let render_component = gen_render_custom_component_statements(&custom_component_blocks_info);
+    let render_if = gen_render_if_blk_func(&if_blocks_info, &needed_id);
     after_mount_codes.extend(render_if);
+    let render_component = gen_render_custom_component_statements(&custom_component_blocks_info);
     after_mount_codes.extend(render_component);
     after_mount_codes.push("this.blkUpdateMap = 0".to_string());
     let update_func_code =
@@ -167,12 +142,13 @@ pub fn generate_js_from_blocks(
         after_mount_code
     );
     codes.push(after_mount_func_code);
+
     codes.push("return __BLVE_COMPONENT_RETURN;".to_string());
 
-    let full_code = gen_full_code(no_export, export_name, runtime_path, imports_string, codes);
+    let full_js_code = gen_full_code(no_export, export_name, runtime_path, imports_string, codes);
     let css_code = blocks.detailed_language_blocks.css.clone();
 
-    Ok((full_code, css_code))
+    Ok((full_js_code, css_code))
 }
 
 fn gen_full_code(
@@ -203,25 +179,6 @@ fn gen_full_code(
 }}"#,
         runtime_path, imports_string, func_decl, code,
     )
-}
-
-// TODO: インデントの種類を入力によって変えられるようにする
-fn create_indent(string: &str) -> String {
-    let mut output = "".to_string();
-    let indent = "    ";
-    for (i, line) in string.lines().into_iter().enumerate() {
-        match line == "" {
-            true => {}
-            false => {
-                output.push_str(indent);
-                output.push_str(line);
-            }
-        }
-        if i != string.lines().into_iter().count() - 1 {
-            output.push_str("\n");
-        }
-    }
-    output
 }
 
 fn gen_ref_getter_from_needed_ids(needed_ids: &Vec<NeededIdName>) -> String {
@@ -255,14 +212,41 @@ fn gen_ref_getter_from_needed_ids(needed_ids: &Vec<NeededIdName>) -> String {
     ref_getter_str
 }
 
-fn gen_binary_map_from_bool(bools: Vec<bool>) -> u32 {
-    let mut result = 0;
-    for (i, &value) in bools.iter().enumerate() {
-        if value {
-            result |= 1 << (bools.len() - i - 1);
+fn generate_if_block_ref_var_decl(
+    if_blocks_info: &Vec<IfBlockInfo>,
+    needed_id: &Vec<NeededIdName>,
+) -> Vec<String> {
+    let mut codes = vec![];
+    if if_blocks_info.len() > 0 {
+        let mut variables_to_declare = HashSet::new();
+        for if_block_info in if_blocks_info.iter() {
+            variables_to_declare.insert(if_block_info.if_block_id.clone());
+            let new_ctx_under_if = {
+                let mut ctx = if_block_info.ctx.clone();
+                ctx.push(if_block_info.if_block_id.clone());
+                ctx
+            };
+            for needed_id in needed_id.iter() {
+                if needed_id.ctx == new_ctx_under_if {
+                    variables_to_declare.insert(needed_id.node_id.clone());
+                }
+            }
+        }
+
+        if variables_to_declare.len() != 0 {
+            let decl = format!(
+                "let {};",
+                itertools::join(
+                    variables_to_declare
+                        .iter()
+                        .map(|v| format!("__BLVE_{}_REF", v)),
+                    ", "
+                )
+            );
+            codes.push(decl);
         }
     }
-    result
+    return codes;
 }
 
 fn create_event_listener(actions_and_targets: Vec<ActionAndTarget>) -> Vec<String> {
@@ -540,137 +524,6 @@ fn gen_create_anchor_statements(
         }
     }
     create_anchor_statements
-}
-
-// TODO: Many of the following functions are similar to top-level component creation functions, such as creating refs and rendering if statements. Consider refactoring them into a single function.
-fn gen_render_if_statements(
-    if_block_info: &Vec<IfBlockInfo>,
-    needed_ids: &Vec<NeededIdName>,
-) -> Vec<String> {
-    let mut render_if = vec![];
-
-    for (index, if_block) in if_block_info.iter().enumerate() {
-        let (name, js_gen_elm_code_arr) = match &if_block.elm.content {
-            NodeContent::Element(elm) => elm.generate_element_on_js(&if_block.if_block_id),
-            _ => panic!(),
-        };
-        let insert_elm = match if_block.distance_to_next_elm > 1 {
-            true => format!(
-                "__BLVE_{}_REF.insertBefore({}, __BLVE_{}_ANCHOR);",
-                if_block.parent_id, name, if_block.if_block_id
-            ),
-            false => match if_block.target_anchor_id {
-                Some(_) => format!(
-                    "__BLVE_{}_REF.insertBefore({}, __BLVE_{}_REF);",
-                    if_block.parent_id,
-                    name,
-                    if_block.target_anchor_id.as_ref().unwrap().clone()
-                ),
-                None => format!(
-                    "__BLVE_{}_REF.insertBefore({}, null);",
-                    if_block.parent_id, name
-                ),
-            },
-        };
-
-        // TODO:一連の生成コードを、need_idのmethodとして関数にまとめる
-        let current_blk_ctx = {
-            let mut new_ctx = if_block.ctx.clone();
-            new_ctx.push(if_block.if_block_id.clone());
-            new_ctx
-        };
-        let filtered = needed_ids
-            .iter()
-            .filter(|id: &&NeededIdName| id.ctx == current_blk_ctx)
-            .filter(|id: &&NeededIdName| id.node_id != if_block.if_block_id);
-
-        let ref_getter_str = if filtered.clone().count() > 0 {
-            // TODO:format!などを使ってもっとみやすいコードを書く
-            let mut ref_getter_str = "\n[".to_string();
-
-            ref_getter_str.push_str(
-                filtered
-                    .clone()
-                    .map(|id| format!("__BLVE_{}_REF", id.node_id))
-                    .collect::<Vec<String>>()
-                    .join(", ")
-                    .as_str(),
-            );
-            ref_getter_str.push_str("] = __BLVE_GET_ELM_REFS([");
-            ref_getter_str.push_str(
-                filtered
-                    .clone()
-                    .map(|id| format!("\"{}\"", id.id_name))
-                    .collect::<Vec<String>>()
-                    .join(",")
-                    .as_str(),
-            );
-            let delete_id_bool_map = needed_ids
-                .iter()
-                .filter(|id: &&NeededIdName| id.ctx == current_blk_ctx)
-                .map(|id| id.to_delete)
-                .collect::<Vec<bool>>();
-            let delete_id_map = gen_binary_map_from_bool(delete_id_bool_map);
-            ref_getter_str.push_str(format!("], {map});", map = delete_id_map).as_str());
-
-            ref_getter_str
-        } else {
-            "".to_string()
-        };
-
-        let children = if_block.find_children(&if_block_info);
-
-        let child_block_rendering_exec = if children.len() != 0 {
-            let mut rendering_statement = "\n".to_string();
-            let mut child_block_rendering_exec = vec![];
-            for child_if in children {
-                child_block_rendering_exec.push(format!(
-                    "{} && __BLVE_RENDER_{}_ELM()",
-                    child_if.condition, &child_if.if_block_id
-                ));
-            }
-            rendering_statement.push_str(child_block_rendering_exec.join("\n").as_str());
-            rendering_statement
-        } else {
-            "".to_string()
-        };
-
-        // TODO: 一連の処理を関数にまとめる
-        // TODO: CreateIndentを複数行に対応させる
-        let js_gen_elm_code = js_gen_elm_code_arr
-            .iter()
-            .map(|c| create_indent(c))
-            .collect::<Vec<String>>()
-            .join("\n");
-        let blk_num: u64 = (2 as u64).pow(index as u32);
-        // TODO: {}の前後に改行があったりなかったりするので、統一する
-        render_if.push(format!(
-            r#"const __BLVE_RENDER_{}_ELM = () => {{
-{}
-{}
-{}{}{}
-}}"#,
-            &if_block.if_block_id,
-            js_gen_elm_code,
-            create_indent(insert_elm.as_str()),
-            create_indent(
-                format!(
-                    "this.blkRenderedMap |= {}, this.blkUpdateMap |= {};",
-                    blk_num, blk_num
-                )
-                .as_str()
-            ),
-            create_indent(ref_getter_str.as_str()),
-            create_indent(child_block_rendering_exec.as_str())
-        ));
-        if if_block.ctx.len() == 0 {
-            render_if.push(format!(
-                "{} && __BLVE_RENDER_{}_ELM()",
-                if_block.condition, &if_block.if_block_id
-            ));
-        }
-    }
-    render_if
 }
 
 fn gen_render_custom_component_statements(
