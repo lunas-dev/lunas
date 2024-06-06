@@ -1,9 +1,12 @@
 use crate::{
     generate_js::{
         create_event_listener, gen_create_anchor_statements, gen_ref_getter_from_needed_ids,
+        gen_render_custom_component_statements,
     },
     orig_html_struct::structs::NodeContent,
-    structs::transform_info::{ActionAndTarget, IfBlockInfo, NeededIdName, TextNodeRendererGroup},
+    structs::transform_info::{
+        ActionAndTarget, CustomComponentBlockInfo, IfBlockInfo, NeededIdName, TextNodeRendererGroup,
+    },
     transformers::html_utils::create_blve_internal_component_statement,
 };
 
@@ -15,6 +18,7 @@ pub fn gen_render_if_blk_func(
     needed_ids: &Vec<NeededIdName>,
     actions_and_targets: &Vec<ActionAndTarget>,
     text_node_renderer: &TextNodeRendererGroup,
+    custom_component_blocks_info: &Vec<CustomComponentBlockInfo>,
 ) -> Vec<String> {
     let mut render_if = vec![];
 
@@ -41,6 +45,17 @@ pub fn gen_render_if_blk_func(
             rendering_statement.extend(ev_listener_code.iter().map(|x| x.as_str()));
         }
 
+        let gen_anchor = gen_create_anchor_statements(&text_node_renderer, &if_block.ctx_under_if);
+        rendering_statement.extend(gen_anchor.iter().map(|x| x.as_str()));
+
+        let render_child_component = gen_render_custom_component_statements(
+            &custom_component_blocks_info,
+            &if_block.ctx_under_if,
+        );
+        if render_child_component.len() != 0 {
+            rendering_statement.extend(render_child_component.iter().map(|x| x.as_str()));
+        }
+
         // if there are children if block under the if block, render them
         let children = if_block.find_children(&if_block_info);
 
@@ -57,8 +72,6 @@ pub fn gen_render_if_blk_func(
             vec![]
         };
         rendering_statement.extend(child_block_rendering_exec.iter().map(|x| x.as_str()));
-        let gen_anchor = gen_create_anchor_statements(&text_node_renderer, &if_block.ctx_under_if);
-        rendering_statement.extend(gen_anchor.iter().map(|x| x.as_str()));
 
         let name_of_parent_of_if_blk = format!("__BLVE_{}_REF", if_block.parent_id);
         let name_of_anchor_of_if_blk = match if_block.distance_to_next_elm > 1 {
