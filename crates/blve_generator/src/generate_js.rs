@@ -109,22 +109,29 @@ pub fn generate_js_from_blocks(
     );
     let mut codes = vec![js_output, html_insert];
 
-    // Generate AfterMount
-    let mut after_mount_code_array = vec![];
-    let ref_getter_expression = gen_ref_getter_from_needed_ids(&needed_id, &None, &None);
-    after_mount_code_array.push(ref_getter_expression);
-    let if_block_elm_decl = generate_if_block_ref_var_decl(&if_blocks_info, &needed_id);
-    after_mount_code_array.extend(if_block_elm_decl);
-    let txt_node_renderer = TextNodeRendererGroup::new(
+    let text_node_renderer_group = TextNodeRendererGroup::new(
         &if_blocks_info,
         &text_node_renderer,
         &custom_component_blocks_info,
     );
-    let create_anchor_statements = gen_create_anchor_statements(&txt_node_renderer, &vec![]);
+
+    // Generate AfterMount
+    let mut after_mount_code_array = vec![];
+    let ref_getter_expression = gen_ref_getter_from_needed_ids(&needed_id, &None, &None);
+    after_mount_code_array.push(ref_getter_expression);
+    let if_block_elm_decl =
+        generate_if_block_ref_var_decl(&if_blocks_info, &needed_id, &text_node_renderer_group);
+    after_mount_code_array.extend(if_block_elm_decl);
+    let create_anchor_statements = gen_create_anchor_statements(&text_node_renderer_group, &vec![]);
     after_mount_code_array.extend(create_anchor_statements);
-    let event_listener_codes = create_event_listener(action_and_target);
+    let event_listener_codes = create_event_listener(&action_and_target, &vec![]);
     after_mount_code_array.extend(event_listener_codes);
-    let render_if = gen_render_if_blk_func(&if_blocks_info, &needed_id);
+    let render_if = gen_render_if_blk_func(
+        &if_blocks_info,
+        &needed_id,
+        &action_and_target,
+        &text_node_renderer_group,
+    );
     after_mount_code_array.extend(render_if);
     let render_component = gen_render_custom_component_statements(&custom_component_blocks_info);
     after_mount_code_array.extend(render_component);
@@ -237,41 +244,15 @@ pub fn gen_ref_getter_from_needed_ids(
     ref_getter_str
 }
 
-fn generate_if_block_ref_var_decl(
-    if_blocks_info: &Vec<IfBlockInfo>,
-    needed_id: &Vec<NeededIdName>,
+pub fn create_event_listener(
+    actions_and_targets: &Vec<ActionAndTarget>,
+    current_ctx: &Vec<String>,
 ) -> Vec<String> {
-    let mut codes = vec![];
-    if if_blocks_info.len() > 0 {
-        let mut variables_to_declare = HashSet::new();
-        for if_block_info in if_blocks_info.iter() {
-            variables_to_declare.insert(if_block_info.if_blk_id.clone());
-            for needed_id in needed_id.iter() {
-                if needed_id.ctx == if_block_info.ctx_under_if {
-                    variables_to_declare.insert(needed_id.node_id.clone());
-                }
-            }
-        }
-
-        if variables_to_declare.len() != 0 {
-            let decl = format!(
-                "let {};",
-                itertools::join(
-                    variables_to_declare
-                        .iter()
-                        .map(|v| format!("__BLVE_{}_REF", v)),
-                    ", "
-                )
-            );
-            codes.push(decl);
-        }
-    }
-    return codes;
-}
-
-fn create_event_listener(actions_and_targets: Vec<ActionAndTarget>) -> Vec<String> {
     let mut result = vec![];
     for action_and_target in actions_and_targets {
+        if action_and_target.ctx != *current_ctx {
+            continue;
+        }
         result.push(format!(
             "__BLVE_ADD_EV_LISTENER(__BLVE_{}_REF, \"{}\", {});",
             action_and_target.target,
@@ -280,6 +261,44 @@ fn create_event_listener(actions_and_targets: Vec<ActionAndTarget>) -> Vec<Strin
         ));
     }
     result
+}
+
+fn generate_if_block_ref_var_decl(
+    if_blocks_info: &Vec<IfBlockInfo>,
+    needed_id: &Vec<NeededIdName>,
+    text_node_renderer_group: &TextNodeRendererGroup,
+) -> Vec<String> {
+    let mut codes = vec![];
+    if if_blocks_info.len() > 0 {
+        let mut variables_to_declare = HashSet::new();
+        for if_block_info in if_blocks_info.iter() {
+            variables_to_declare.insert(format!("__BLVE_{}_REF", if_block_info.if_blk_id));
+        }
+
+        for needed_id in needed_id.iter() {
+            if needed_id.ctx.len() != 0 {
+                variables_to_declare.insert(format!("__BLVE_{}_REF", needed_id.node_id.clone()));
+            }
+        }
+
+        for text_node_renderer in text_node_renderer_group.renderers.iter() {
+            match text_node_renderer {
+                crate::structs::transform_info::TextNodeRenderer::ManualRenderer(txt_renderer) => {
+                    if txt_renderer.ctx.len() != 0 {
+                        variables_to_declare
+                            .insert(format!("__BLVE_{}_TEXT", txt_renderer.text_node_id.clone()));
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if variables_to_declare.len() != 0 {
+            let decl = format!("let {};", itertools::join(variables_to_declare, ", "));
+            codes.push(decl);
+        }
+    }
+    return codes;
 }
 
 fn gen_on_update_func(
@@ -477,7 +496,7 @@ fn gen_on_update_func(
     result
 }
 
-fn gen_create_anchor_statements(
+pub fn gen_create_anchor_statements(
     text_node_renderer: &TextNodeRendererGroup,
     ctx_condition: &Vec<String>,
 ) -> Vec<String> {
@@ -492,8 +511,14 @@ fn gen_create_anchor_statements(
                     Some(anchor_id) => format!("__BLVE_{}_REF", anchor_id),
                     None => "null".to_string(),
                 };
+                let variable_declaration_word = match ctx_condition.len() != 0 {
+                    // when under if block, we don't need to declare the variable
+                    true => "",
+                    false => "const ",
+                };
                 let create_anchor_statement = format!(
-                    "const __BLVE_{}_TEXT = __BLVE_INSERT_CONTENT(`{}`,__BLVE_{}_REF,{});",
+                    "{}__BLVE_{}_TEXT = __BLVE_INSERT_CONTENT(`{}`,__BLVE_{}_REF,{});",
+                    &variable_declaration_word,
                     &txt_renderer.text_node_id,
                     &txt_renderer.content.trim(),
                     &txt_renderer.parent_id,

@@ -213,11 +213,11 @@ export function __BLVE_ADD_EV_LISTENER(
   elm.addEventListener(evName, evFunc);
 }
 
-export function __BLVE_REPLACE_INNER_HTML(content: any, elm: Node) {
+export function __BLVE_REPLACE_TEXT(content: any, elm: Node) {
   elm.textContent = __BLVE_ESCAPE_HTML(content);
 }
 
-export function __BLVE_REPLACE_TEXT(content: any, elm: HTMLElement) {
+export function __BLVE_REPLACE_INNER_HTML(content: any, elm: HTMLElement) {
   elm.innerHTML = __BLVE_ESCAPE_HTML(content);
 }
 

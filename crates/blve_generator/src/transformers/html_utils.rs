@@ -57,6 +57,7 @@ pub fn check_html_elms(
                             action_name: action_name.to_string(),
                             action: EventTarget::new(value.to_string(), varibale_names),
                             target: node_id.clone(),
+                            ctx: ctx_array.clone(),
                         })
                     }
                     element.attributes.remove(key);
@@ -97,6 +98,7 @@ pub fn check_html_elms(
                                 arg: "e".to_string(),
                             }),
                             target: node_id.clone(),
+                            ctx: ctx_array.clone(),
                         });
                         elm_and_var_relation.push(
                             NodeAndReactiveInfo::ElmAndReactiveAttributeRelation(
