@@ -196,7 +196,6 @@ pub fn gen_ref_getter_from_needed_ids(
         })
         // As of now, we get ref of if block on the first render of the block
         // in future, we will store ref to if blk on generation
-
         // // do not get the Ref of the IF block itself
         // // .filter(|needed_elm: &&NeededIdName| match *if_blk == None {
         // //     true => true,
@@ -452,7 +451,7 @@ fn gen_on_update_func(
                 };
 
                 replace_statements.push(format!(
-                    "{}{} && replaceText(`{}`, {}Text);",
+                    "{}{} && __BLVE_REPLACE_TEXT(`{}`, __BLVE_{}_TEXT);",
                     if_blk_rendering_cond,
                     to_update_cond,
                     txt_and_var_content.content_of_element.trim(),
@@ -494,7 +493,7 @@ fn gen_create_anchor_statements(
                     None => "null".to_string(),
                 };
                 let create_anchor_statement = format!(
-                    "const {}Text = __BLVE_INSERT_CONTENT(`{}`,__BLVE_{}_REF,{});",
+                    "const __BLVE_{}_TEXT = __BLVE_INSERT_CONTENT(`{}`,__BLVE_{}_REF,{});",
                     &txt_renderer.text_node_id,
                     &txt_renderer.content.trim(),
                     &txt_renderer.parent_id,
