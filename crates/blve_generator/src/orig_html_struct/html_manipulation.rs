@@ -19,7 +19,8 @@ pub struct RemoveChildForIfStatement {
     pub condition: String,
     pub block_id: String,
     // TODO:ctxとlocをHtmlManipulatorに入れるか検討する
-    pub ctx: Vec<String>,
+    pub ctx_under_if: Vec<String>,
+    pub ctx_over_if: Vec<String>,
     pub elm_loc: Vec<usize>,
 }
 

@@ -35,6 +35,7 @@ export const __BLVE_INIT_COMPONENT = function (this: BlveComponent) {
   this.currentVarBit = 0;
   this.currentIfBlkBit = 0;
   this.isMounted = false;
+  this.ifBlkRenderers = {};
 
   const genBitOfVariables = function* (this: BlveComponent) {
     while (true) {
@@ -50,12 +51,12 @@ export const __BLVE_INIT_COMPONENT = function (this: BlveComponent) {
 
   const genBitOfIfBlks = function* (this: BlveComponent) {
     while (true) {
-      if (this.currentVarBit === 0) {
-        this.currentVarBit = 1;
-        yield this.currentVarBit;
+      if (this.currentIfBlkBit === 0) {
+        this.currentIfBlkBit = 1;
+        yield this.currentIfBlkBit;
       } else {
-        this.currentVarBit <<= 1;
-        yield this.currentVarBit;
+        this.currentIfBlkBit <<= 1;
+        yield this.currentIfBlkBit;
       }
     }
   }.bind(this);
@@ -127,14 +128,14 @@ export const __BLVE_INIT_COMPONENT = function (this: BlveComponent) {
   const createIfBlock = function (
     this: BlveComponent,
     name: string,
-    blveElement: BlveInternalElement,
-    parentElement: HTMLElement,
-    refElement: HTMLElement | null,
+    blveElement: () => BlveInternalElement,
+    getParentAndRefElement: () => [HTMLElement, HTMLElement | null],
     postRender: () => void
   ) {
     const ifBlkBit = genBitOfIfBlks().next().value;
     this.ifBlkRenderers[name] = (() => {
-      const componentElm = createDomElementFromBlveElement(blveElement);
+      const componentElm = createDomElementFromBlveElement(blveElement());
+      const [parentElement, refElement] = getParentAndRefElement();
       parentElement.insertBefore(componentElm, refElement);
       postRender();
       (this.blkRenderedMap |= ifBlkBit), (this.blkUpdateMap |= ifBlkBit);
@@ -144,7 +145,7 @@ export const __BLVE_INIT_COMPONENT = function (this: BlveComponent) {
   const renderIfBlock = function (this: BlveComponent, name: string) {
     if (!this.ifBlkRenderers[name]) return;
     this.ifBlkRenderers[name]();
-  };
+  }.bind(this);
 
   return {
     __BLVE_SET_COMPONENT_ELEMENT: componentElementSetter,
