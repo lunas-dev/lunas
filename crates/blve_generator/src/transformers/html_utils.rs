@@ -62,14 +62,20 @@ pub fn check_html_elms(
                 } else if key == ":if" {
                     // TODO: Add error message for unwrap below
                     let condition = action_value.clone().unwrap();
+                    let ctx_under_if = {
+                        let mut ctx = ctx_array.clone();
+                        ctx.push(node.uuid.clone());
+                        ctx
+                    };
                     html_manipulators.push(HtmlManipulator {
                         target_uuid: parent_uuid.unwrap().clone(),
                         manipulations: HtmlManipulation::RemoveChildForIfStatement(
                             RemoveChildForIfStatement {
                                 child_uuid: node.uuid.clone(),
                                 condition: condition.clone(),
-                                block_id: node.uuid.clone(),
-                                ctx: ctx_array.clone(),
+                                block_id: node_id.clone(),
+                                ctx_over_if: ctx_array.clone(),
+                                ctx_under_if,
                                 elm_loc: element_location.clone(),
                             },
                         ),
@@ -230,10 +236,22 @@ pub fn check_html_elms(
                                 element,
                                 needed_ids,
                                 &node_id,
-                                &remove_statement.ctx,
+                                &remove_statement.ctx_over_if,
                             );
-                            let (elm, _, distance, idx_of_ref) =
+                            let (mut deleted_node, _, distance, idx_of_ref) =
                                 element.remove_child(&remove_statement.child_uuid, component_names);
+
+                            let deleted_elm = match &mut deleted_node.content {
+                                NodeContent::Element(elm) => elm,
+                                _ => panic!("not element"),
+                            };
+
+                            set_id_for_needed_elm(
+                                deleted_elm,
+                                needed_ids,
+                                &remove_statement.child_uuid,
+                                &remove_statement.ctx_under_if,
+                            );
 
                             // TODO:remove_childにまとめる
                             let target_anchor_id = if let Some(idx_of_ref) = idx_of_ref {
@@ -266,12 +284,13 @@ pub fn check_html_elms(
                                 target_if_blk_id: remove_statement.child_uuid.clone(),
                                 distance_to_next_elm: distance,
                                 target_anchor_id,
-                                elm,
+                                node: deleted_node,
                                 ref_text_node_id,
                                 condition: cond,
                                 condition_dep_vars: dep_vars,
-                                ctx: remove_statement.ctx.clone(),
-                                if_block_id: remove_statement.block_id.clone(),
+                                ctx_under_if: remove_statement.ctx_under_if.clone(),
+                                ctx_over_if: remove_statement.ctx_over_if.clone(),
+                                if_blk_id: remove_statement.block_id.clone(),
                                 element_location: remove_statement.elm_loc.clone(),
                             });
                         }
@@ -503,24 +522,31 @@ fn replace_text_with_reactive_value(
     (depending_vars, count_of_bindings)
 }
 
-pub fn generate_set_component_statement(elm: &Element) -> String {
+pub fn create_blve_internal_component_statement(
+    elm: &Element,
+    generation_func_name: &str,
+) -> String {
     let mut code = String::new();
-    code.push_str("__BLVE_SET_COMPONENT_ELEMENT(`");
+    code.push_str(format!("{}(`", generation_func_name).as_str());
     for child in &elm.children {
         code.push_str(&child.to_string());
     }
     code.push_str("`, \"");
     code.push_str(&elm.tag_name);
     code.push_str("\"");
-    // code.push_str("\", {");
-    if elm.attributes.len() > 0 {
+    let attrs = elm.attributes_without_meta();
+    if attrs.len() > 0 {
         code.push_str(", {");
-        for (key, value) in &elm.attributes {
-            code.push_str(&format!("{}: \"{}\",", key, value.clone().unwrap()));
+        for (key, value) in attrs.iter() {
+            let js_value = match value {
+                Some(value) => format!("\"{}\"", value),
+                None => "null".to_string(),
+            };
+            code.push_str(&format!("\"{}\": {},", key, js_value));
         }
         code.push('}');
     }
-    code.push_str(");");
+    code.push_str(")");
     code
 }
 

@@ -3,20 +3,20 @@ use std::collections::HashMap;
 
 use crate::transformers::utils::UUID_GENERATOR;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Node {
     pub uuid: String,
     pub content: NodeContent,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum NodeContent {
     Element(Element),
     TextNode(String),
     Comment(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Element {
     pub tag_name: String,
     pub attributes: HashMap<String, Option<String>>,
@@ -65,35 +65,10 @@ impl Element {
         (elm_node, idx as u64, distance, idx_of_ref)
     }
 
-    pub fn generate_element_on_js(&self, if_block_name: &String) -> (String, Vec<String>) {
-        let elm_name = format!("__BLVE_{}_REF", if_block_name);
-        let mut js_code = vec![format!(
-            "{} = document.createElement(\"{}\");\n",
-            elm_name, self.tag_name
-        )];
-        for (key, value) in &self.attributes {
-            if key == "$$$conditional$$$" {
-                continue;
-            }
-            match value {
-                Some(value) => {
-                    js_code.push(format!("{}[\"{}\"] = \"{}\";\n", elm_name, key, value))
-                }
-                None => js_code.push(format!("{}.setAttribute(\"{}\", \"\");\n", elm_name, key)),
-            }
-        }
-        let mut child_str = "".to_string();
-        if self.children.len() != 0 {
-            for child in &self.children {
-                child_str.push_str(child.to_string().as_str());
-            }
-            js_code.push(format!(
-                "__BLVE_{}_REF.innerHTML = `{}`;\n",
-                if_block_name, child_str
-            ));
-        }
-
-        (elm_name, js_code)
+    pub fn attributes_without_meta(&self) -> HashMap<String, Option<String>> {
+        let mut attributes = self.attributes.clone();
+        attributes.remove("$$$conditional$$$");
+        attributes
     }
 }
 
