@@ -26,7 +26,7 @@ pub fn gen_render_if_blk_func(
         // create element
         let create_internal_element_statement = match &if_block.node.content {
             NodeContent::Element(elm) => {
-                create_blve_internal_component_statement(elm, "__CREATE_BLVE_ELEMENT")
+                create_blve_internal_component_statement(elm, "$$createBlveElement")
             }
             _ => panic!(),
         };
@@ -63,7 +63,7 @@ pub fn gen_render_if_blk_func(
             let mut child_block_rendering_exec = vec![];
             for child_if in children {
                 child_block_rendering_exec.push(format!(
-                    "\n{} && __BLVE_RENDER_IF_BLOCK(\"{}\");",
+                    "\n{} && $$blveRenderIfBlock(\"{}\");",
                     child_if.condition, &child_if.if_blk_id
                 ));
             }
@@ -73,12 +73,12 @@ pub fn gen_render_if_blk_func(
         };
         rendering_statement.extend(child_block_rendering_exec.iter().map(|x| x.as_str()));
 
-        let name_of_parent_of_if_blk = format!("__BLVE_{}_REF", if_block.parent_id);
+        let name_of_parent_of_if_blk = format!("$$blve{}Ref", if_block.parent_id);
         let name_of_anchor_of_if_blk = match if_block.distance_to_next_elm > 1 {
-            true => format!("__BLVE_{}_ANCHOR", if_block.if_blk_id),
+            true => format!("$$blve{}Anchor", if_block.if_blk_id),
             false => match if_block.target_anchor_id {
                 Some(_) => format!(
-                    "__BLVE_{}_REF",
+                    "$$blve{}Ref",
                     if_block.target_anchor_id.as_ref().unwrap().clone()
                 ),
                 None => format!("null"),
@@ -108,7 +108,7 @@ pub fn gen_render_if_blk_func(
         );
 
         let create_if_func = format!(
-            r#"__BLVE_CREATE_IF_BLOCK(
+            r#"$$blveCreateIfBlock(
 {}
 ) "#,
             create_indent(create_if_func_inside.as_str())
@@ -117,7 +117,7 @@ pub fn gen_render_if_blk_func(
         render_if.push(create_if_func);
         if if_block.ctx_over_if.len() == 0 {
             render_if.push(format!(
-                "{} && __BLVE_RENDER_IF_BLOCK(\"{}\")",
+                "{} && $$blveRenderIfBlock(\"{}\")",
                 if_block.condition, &if_block.if_blk_id
             ));
         }
