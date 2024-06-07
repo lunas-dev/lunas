@@ -131,9 +131,11 @@ pub fn generate_js_from_blocks(
         &needed_id,
         &action_and_target,
         &text_node_renderer_group,
+        &custom_component_blocks_info,
     );
     after_mount_code_array.extend(render_if);
-    let render_component = gen_render_custom_component_statements(&custom_component_blocks_info);
+    let render_component =
+        gen_render_custom_component_statements(&custom_component_blocks_info, &vec![]);
     after_mount_code_array.extend(render_component);
     after_mount_code_array.push("this.blkUpdateMap = 0".to_string());
     let update_func_code = gen_on_update_func(elm_and_var_relation, variables, if_blocks_info);
@@ -183,7 +185,7 @@ fn gen_full_code(
         r#"import {{ __BLVE_ADD_EV_LISTENER, __BLVE_ESCAPE_HTML, __BLVE_GET_ELM_REFS, __BLVE_INIT_COMPONENT, __BLVE_REPLACE_INNER_HTML, __BLVE_REPLACE_TEXT, __BLVE_REPLACE_ATTR, __BLVE_INSERT_EMPTY, __BLVE_INSERT_CONTENT, __CREATE_BLVE_ELEMENT }} from "{}";{}
 
 {}function() {{
-    const {{ __BLVE_SET_COMPONENT_ELEMENT, __BLVE_UPDATE_COMPONENT, __BLVE_COMPONENT_RETURN, __BLVE_AFTER_MOUNT, __BLVE_REACTIVE, __BLVE_RENDER_IF_BLOCK, __BLVE_CREATE_IF_BLOCK }} = __BLVE_INIT_COMPONENT();
+    const {{ __BLVE_SET_COMPONENT_ELEMENT, __BLVE_UPDATE_COMPONENT, __BLVE_COMPONENT_RETURN, __BLVE_AFTER_MOUNT, __BLVE_REACTIVE, __BLVE_RENDER_IF_BLOCK, __BLVE_CREATE_IF_BLOCK }} = new __BLVE_INIT_COMPONENT();
 {}
 }}"#,
         runtime_path, imports_string, func_decl, code,
@@ -289,7 +291,22 @@ fn generate_if_block_ref_var_decl(
                             .insert(format!("__BLVE_{}_TEXT", txt_renderer.text_node_id.clone()));
                     }
                 }
-                _ => {}
+                crate::structs::transform_info::TextNodeRenderer::IfBlockRenderer(if_renderer) => {
+                    if if_renderer.ctx_over_if.len() != 0 {
+                        variables_to_declare
+                            .insert(format!("__BLVE_{}_ANCHOR", if_renderer.if_blk_id.clone()));
+                    }
+                }
+                crate::structs::transform_info::TextNodeRenderer::CustomComponentRenderer(
+                    custom_renderer,
+                ) => {
+                    if custom_renderer.ctx.len() != 0 {
+                        variables_to_declare.insert(format!(
+                            "__BLVE_{}_ANCHOR",
+                            custom_renderer.custom_component_block_id.clone()
+                        ));
+                    }
+                }
             }
         }
 
@@ -536,9 +553,17 @@ pub fn gen_create_anchor_statements(
                             Some(anchor_id) => format!("__BLVE_{}_REF", anchor_id),
                             None => "null".to_string(),
                         };
+                        let variable_declaration_word = match ctx_condition.len() != 0 {
+                            // when under if block, we don't need to declare the variable
+                            true => "",
+                            false => "const ",
+                        };
                         let create_anchor_statement = format!(
-                            "const __BLVE_{}_ANCHOR = __BLVE_INSERT_EMPTY(__BLVE_{}_REF,{});",
-                            if_block.if_blk_id, if_block.parent_id, anchor_id
+                            "{}__BLVE_{}_ANCHOR = __BLVE_INSERT_EMPTY(__BLVE_{}_REF,{});",
+                            variable_declaration_word,
+                            if_block.if_blk_id,
+                            if_block.parent_id,
+                            anchor_id
                         );
                         create_anchor_statements.push(create_anchor_statement);
                     }
@@ -556,8 +581,14 @@ pub fn gen_create_anchor_statements(
                         Some(anchor_id) => format!("__BLVE_{}_REF", anchor_id),
                         None => "null".to_string(),
                     };
+                    let variable_declaration_word = match ctx_condition.len() != 0 {
+                        // when under if block, we don't need to declare the variable
+                        true => "",
+                        false => "const ",
+                    };
                     let create_anchor_statement = format!(
-                        "const __BLVE_{}_ANCHOR = __BLVE_INSERT_EMPTY(__BLVE_{}_REF,{});",
+                        "{}__BLVE_{}_ANCHOR = __BLVE_INSERT_EMPTY(__BLVE_{}_REF,{});",
+                        variable_declaration_word,
                         custom_component.custom_component_block_id,
                         custom_component.parent_id,
                         anchor_id
@@ -571,17 +602,21 @@ pub fn gen_create_anchor_statements(
     create_anchor_statements
 }
 
-fn gen_render_custom_component_statements(
+pub fn gen_render_custom_component_statements(
     custom_component_block_info: &Vec<CustomComponentBlockInfo>,
+    ctx: &Vec<String>,
 ) -> Vec<String> {
     let mut render_custom_statements = vec![];
 
     for custom_component_block in custom_component_block_info.iter() {
+        if custom_component_block.ctx != *ctx {
+            continue;
+        }
         if custom_component_block.have_sibling_elm {
             match custom_component_block.distance_to_next_elm > 1 {
                 true => {
                     render_custom_statements.push(format!(
-                        "const __BLVE_{}_COMP = {}().insertBefore(__BLVE_{}_REF, __BLVE_{}_ANCHOR);",
+                        "const __BLVE_{}_COMP = {}().insert(__BLVE_{}_REF, __BLVE_{}_ANCHOR);",
                         custom_component_block.custom_component_block_id,
                         custom_component_block.component_name,
                         custom_component_block.parent_id,
@@ -594,7 +629,7 @@ fn gen_render_custom_component_statements(
                         None => "null".to_string(),
                     };
                     render_custom_statements.push(format!(
-                        "const __BLVE_{}_COMP = {}().insertBefore(__BLVE_{}_REF, {});",
+                        "const __BLVE_{}_COMP = {}().insert(__BLVE_{}_REF, {});",
                         custom_component_block.custom_component_block_id,
                         custom_component_block.component_name,
                         custom_component_block.parent_id,

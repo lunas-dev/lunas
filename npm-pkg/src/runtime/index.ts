@@ -95,7 +95,7 @@ export const __BLVE_INIT_COMPONENT = function (this: BlveComponent) {
     return this;
   }.bind(this);
 
-  const insertBefore = function (
+  const insert = function (
     this: BlveComponent,
     elm: HTMLElement,
     anchor: HTMLElement | null
@@ -156,10 +156,10 @@ export const __BLVE_INIT_COMPONENT = function (this: BlveComponent) {
     __BLVE_RENDER_IF_BLOCK: renderIfBlock,
     __BLVE_COMPONENT_RETURN: {
       mount,
-      insertBefore,
+      insert,
     },
   };
-}.bind({} as BlveComponent);
+};
 
 class valueObj<T> {
   constructor(
