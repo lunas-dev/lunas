@@ -91,6 +91,7 @@ pub fn generate_js_from_blocks(
         &vec![],
         &vec![0],
         1,
+        false,
     )?;
 
     sort_if_blocks(&mut if_blocks_info);
