@@ -3,15 +3,15 @@ use nanoid::nanoid;
 use crate::{
     orig_html_struct::{
         html_manipulation::{
-            HtmlManipulation, HtmlManipulator, RemoveChildForIfStatement, RemoveChildTextNode,
-            SetIdToParentForChildReactiveText,
+            HtmlManipulation, HtmlManipulator, RemoveChildForCustomComponent,
+            RemoveChildForIfStatement, RemoveChildTextNode, SetIdToParentForChildReactiveText,
         },
         structs::{Element, Node, NodeContent},
     },
     structs::{
         transform_info::{
-            ActionAndTarget, EventBindingStatement, EventTarget, IfBlockInfo,
-            ManualRendererForTextNode, NeededIdName,
+            ActionAndTarget, CustomComponentBlockInfo, EventBindingStatement, EventTarget,
+            IfBlockInfo, ManualRendererForTextNode, NeededIdName,
         },
         transform_targets::{
             ElmAndReactiveAttributeRelation, ElmAndVariableContentRelation, NodeAndReactiveInfo,
@@ -25,9 +25,9 @@ use super::utils::{append_v_to_vars_in_html, UUID_GENERATOR};
 // TODO:この関数の責務が多すぎるので、可能な限り分離させる
 // TODO:dep_vars の使い方を再考する
 // TODO: 引数が大きすぎるので、共通の目的を持った引数はstructとしてグループ化する
-// RCを使用して、子から親のmutableな変数を参照できるようにする可能性も視野に入れる
 pub fn check_html_elms(
     varibale_names: &Vec<String>,
+    component_names: &Vec<String>,
     node: &mut Node,
     // TODO: needed_idsからリネーム
     needed_ids: &mut Vec<NeededIdName>,
@@ -36,10 +36,12 @@ pub fn check_html_elms(
     parent_uuid: Option<&String>,
     html_manipulators: &mut Vec<HtmlManipulator>,
     if_blocks_info: &mut Vec<IfBlockInfo>,
+    custom_component_blocks_info: &mut Vec<CustomComponentBlockInfo>,
     txt_node_renderer: &mut Vec<ManualRendererForTextNode>,
     if_blk_ctx: &Vec<String>,
     element_location: &Vec<usize>,
     count_of_siblings: usize,
+    txt_node_to_be_deleted: bool,
 ) -> Result<(), String> {
     let node_id = node.uuid.clone();
     match &mut node.content {
@@ -55,20 +57,27 @@ pub fn check_html_elms(
                             action_name: action_name.to_string(),
                             action: EventTarget::new(value.to_string(), varibale_names),
                             target: node_id.clone(),
+                            ctx: ctx_array.clone(),
                         })
                     }
                     element.attributes.remove(key);
                 } else if key == ":if" {
                     // TODO: Add error message for unwrap below
                     let condition = action_value.clone().unwrap();
+                    let ctx_under_if = {
+                        let mut ctx = ctx_array.clone();
+                        ctx.push(node.uuid.clone());
+                        ctx
+                    };
                     html_manipulators.push(HtmlManipulator {
                         target_uuid: parent_uuid.unwrap().clone(),
                         manipulations: HtmlManipulation::RemoveChildForIfStatement(
                             RemoveChildForIfStatement {
                                 child_uuid: node.uuid.clone(),
                                 condition: condition.clone(),
-                                block_id: node.uuid.clone(),
-                                ctx: ctx_array.clone(),
+                                block_id: node_id.clone(),
+                                ctx_over_if: ctx_array.clone(),
+                                ctx_under_if,
                                 elm_loc: element_location.clone(),
                             },
                         ),
@@ -89,6 +98,7 @@ pub fn check_html_elms(
                                 arg: "e".to_string(),
                             }),
                             target: node_id.clone(),
+                            ctx: ctx_array.clone(),
                         });
                         elm_and_var_relation.push(
                             NodeAndReactiveInfo::ElmAndReactiveAttributeRelation(
@@ -163,14 +173,48 @@ pub fn check_html_elms(
                     reactive_attr_info.reactive_attr.push(reactive_attr);
                 }
             }
+
+            // When the tag_name corresponds to the component_names
+            if component_names.contains(&element.tag_name) {
+                html_manipulators.push(HtmlManipulator {
+                    target_uuid: parent_uuid.unwrap().clone(),
+                    manipulations: HtmlManipulation::RemoveChildForCustomComponent(
+                        RemoveChildForCustomComponent {
+                            component_name: element.tag_name.clone(),
+                            child_uuid: node.uuid.clone(),
+                            block_id: node.uuid.clone(),
+                            ctx: ctx_array.clone(),
+                            elm_loc: element_location.clone(),
+                        },
+                    ),
+                });
+            }
+
             let count_of_siblings = element.children.len();
 
+            let element_children = element.children.clone();
             for (index, child_node) in element.children.iter_mut().enumerate() {
                 let mut new_element_location = element_location.clone();
                 new_element_location.push(index);
 
+                let txt_node_to_be_deleted = if index != 0 {
+                    match &element_children.get(index - 1).unwrap().content {
+                        NodeContent::Element(next_element) => {
+                            next_element
+                                .attributes_without_meta()
+                                .iter()
+                                .any(|f| f.0.starts_with(":if"))
+                                || component_names.contains(&next_element.tag_name)
+                        }
+                        _ => true,
+                    }
+                } else {
+                    false
+                };
+
                 check_html_elms(
                     varibale_names,
+                    component_names,
                     child_node,
                     needed_ids,
                     elm_and_var_relation,
@@ -178,14 +222,14 @@ pub fn check_html_elms(
                     Some(&node.uuid),
                     html_manipulators,
                     if_blocks_info,
+                    custom_component_blocks_info,
                     txt_node_renderer,
                     &ctx_array,
                     &new_element_location,
                     count_of_siblings,
+                    txt_node_to_be_deleted,
                 )?;
             }
-
-            println!("{:#?}", html_manipulators);
 
             // TODO: 下の処理を関数にまとめる
 
@@ -193,8 +237,9 @@ pub fn check_html_elms(
                 fn manip_to_ctx(manip: &HtmlManipulator) -> Vec<usize> {
                     match &manip.manipulations {
                         HtmlManipulation::RemoveChildForIfStatement(a) => a.elm_loc.clone(),
-                        HtmlManipulation::SetIdForReactiveContent(b) => b.elm_loc.clone(),
-                        HtmlManipulation::RemoveChildTextNode(c) => c.elm_loc.clone(),
+                        HtmlManipulation::RemoveChildForCustomComponent(b) => b.elm_loc.clone(),
+                        HtmlManipulation::SetIdForReactiveContent(c) => c.elm_loc.clone(),
+                        HtmlManipulation::RemoveChildTextNode(d) => d.elm_loc.clone(),
                     }
                 }
                 let aloc = manip_to_ctx(a);
@@ -211,10 +256,22 @@ pub fn check_html_elms(
                                 element,
                                 needed_ids,
                                 &node_id,
-                                &remove_statement.ctx,
+                                &remove_statement.ctx_over_if,
                             );
-                            let (elm, _, distance, idx_of_ref) =
-                                element.remove_child(&remove_statement.child_uuid);
+                            let (mut deleted_node, _, distance, idx_of_ref) =
+                                element.remove_child(&remove_statement.child_uuid, component_names);
+
+                            let deleted_elm = match &mut deleted_node.content {
+                                NodeContent::Element(elm) => elm,
+                                _ => panic!("not element"),
+                            };
+
+                            set_id_for_needed_elm(
+                                deleted_elm,
+                                needed_ids,
+                                &remove_statement.child_uuid,
+                                &remove_statement.ctx_under_if,
+                            );
 
                             // TODO:remove_childにまとめる
                             let target_anchor_id = if let Some(idx_of_ref) = idx_of_ref {
@@ -247,12 +304,59 @@ pub fn check_html_elms(
                                 target_if_blk_id: remove_statement.child_uuid.clone(),
                                 distance_to_next_elm: distance,
                                 target_anchor_id,
-                                elm,
+                                node: deleted_node,
                                 ref_text_node_id,
                                 condition: cond,
                                 condition_dep_vars: dep_vars,
+                                ctx_under_if: remove_statement.ctx_under_if.clone(),
+                                ctx_over_if: remove_statement.ctx_over_if.clone(),
+                                if_blk_id: remove_statement.block_id.clone(),
+                                element_location: remove_statement.elm_loc.clone(),
+                            });
+                        }
+                        HtmlManipulation::RemoveChildForCustomComponent(remove_statement) => {
+                            set_id_for_needed_elm(
+                                element,
+                                needed_ids,
+                                &node_id,
+                                &remove_statement.ctx,
+                            );
+                            let (_, _, distance, idx_of_ref) =
+                                element.remove_child(&remove_statement.child_uuid, component_names);
+
+                            // TODO:remove_childにまとめる
+                            let target_anchor_id = if let Some(idx_of_ref) = idx_of_ref {
+                                let node_id =
+                                    &element.children[idx_of_ref as usize - 1].uuid.clone();
+                                Some(set_id_for_needed_elm(
+                                    match &mut element.children[idx_of_ref as usize - 1].content {
+                                        NodeContent::Element(elm) => elm,
+                                        _ => panic!("not element"),
+                                    },
+                                    needed_ids,
+                                    node_id,
+                                    // TODO: 親のctxを指定しているが、その旨が明示的ではないので、明示的にする
+                                    &if_blk_ctx,
+                                ));
+                                Some(node_id.clone())
+                            } else {
+                                None
+                            };
+                            let ref_text_node_id = match distance != 1 {
+                                true => Some(nanoid!()),
+                                false => None,
+                            };
+
+                            custom_component_blocks_info.push(CustomComponentBlockInfo {
+                                parent_id: node_id.clone(),
+                                target_if_blk_id: remove_statement.child_uuid.clone(),
+                                distance_to_next_elm: distance,
+                                have_sibling_elm: count_of_siblings > 1,
+                                target_anchor_id,
+                                component_name: remove_statement.component_name.clone(),
+                                ref_text_node_id,
                                 ctx: remove_statement.ctx.clone(),
-                                if_block_id: remove_statement.block_id.clone(),
+                                custom_component_block_id: UUID_GENERATOR.lock().unwrap().gen(),
                                 element_location: remove_statement.elm_loc.clone(),
                             });
                         }
@@ -277,7 +381,7 @@ pub fn check_html_elms(
                             );
 
                             let (_, _, distance, idx_of_ref) =
-                                element.remove_child(&remove_text_node.child_uuid);
+                                element.remove_child(&remove_text_node.child_uuid, component_names);
                             // TODO:remove_childにまとめる
                             let target_anchor_id = if let Some(idx_of_ref) = idx_of_ref {
                                 let node_id =
@@ -339,7 +443,7 @@ pub fn check_html_elms(
                         },
                     ),
                 });
-            } else if dep_vars.len() > 0 && count_of_siblings > 1 {
+            } else if dep_vars.len() > 0 && count_of_siblings > 1 || txt_node_to_be_deleted {
                 html_manipulators.push(HtmlManipulator {
                     target_uuid: parent_uuid.unwrap().clone(),
                     manipulations: HtmlManipulation::RemoveChildTextNode(RemoveChildTextNode {
@@ -393,12 +497,12 @@ fn set_id_for_needed_elm(
 
 // FIXME:カッコが複数でも、escapeTextは各バインディングに1つだけでいい
 // 具体例:
-// 現在:${escapeHtml(count.v+count.v)} count ${escapeHtml(count)} ${escapeHtml( count + count )}
-// 将来的:${escapeHtml(`${count.v+count.v} count ${count} ${ count + count }`)}
+// 現在:${$$blveEscapeHtml(count.v+count.v)} count ${$$blveEscapeHtml(count)} ${$$blveEscapeHtml( count + count )}
+// 将来的:${$$blveEscapeHtml(`${count.v+count.v} count ${count} ${ count + count }`)}
 
 // カッコが1つだけの場合、その部分のみをエスケープする
 // Give: <div>    ${count} </div>
-// Want: <div>    ${escapeHtml(count)} </div>
+// Want: <div>    ${$$blveEscapeHtml(count)} </div>
 // TODO: count_of_bindingsの返却をやめる
 fn replace_text_with_reactive_value(
     code: &mut String,
@@ -438,6 +542,34 @@ fn replace_text_with_reactive_value(
     (depending_vars, count_of_bindings)
 }
 
+pub fn create_blve_internal_component_statement(
+    elm: &Element,
+    generation_func_name: &str,
+) -> String {
+    let mut code = String::new();
+    code.push_str(format!("{}(`", generation_func_name).as_str());
+    for child in &elm.children {
+        code.push_str(&child.to_string());
+    }
+    code.push_str("`, \"");
+    code.push_str(&elm.tag_name);
+    code.push_str("\"");
+    let attrs = elm.attributes_without_meta();
+    if attrs.len() > 0 {
+        code.push_str(", {");
+        for (key, value) in attrs.iter() {
+            let js_value = match value {
+                Some(value) => format!("\"{}\"", value),
+                None => "null".to_string(),
+            };
+            code.push_str(&format!("\"{}\": {},", key, js_value));
+        }
+        code.push('}');
+    }
+    code.push_str(")");
+    code
+}
+
 // TODO: テストを別ファイルに移動する
 #[cfg(test)]
 mod tests {
@@ -445,24 +577,24 @@ mod tests {
 
     #[test]
     fn exploration() {
-        let code = "escapeHtml(count2.v+count.v)";
+        let code = "$$blveEscapeHtml(count2.v+count.v)";
         let mut code = code.clone().to_string();
         replace_text_with_reactive_value(
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
         );
-        assert_eq!(code, "escapeHtml(count2.v+count.v)");
+        assert_eq!(code, "$$blveEscapeHtml(count2.v+count.v)");
     }
 
     #[test]
     fn exploration2() {
-        let code = "escapeHtml( count2.v + count.v )";
+        let code = "$$blveEscapeHtml( count2.v + count.v )";
         let mut code = code.clone().to_string();
         replace_text_with_reactive_value(
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
         );
-        assert_eq!(code, "escapeHtml( count2.v + count.v )");
+        assert_eq!(code, "$$blveEscapeHtml( count2.v + count.v )");
     }
 
     #[test]
@@ -472,13 +604,13 @@ mod tests {
         replace_text_with_reactive_value(&mut code, &vec!["interval".to_string()]);
         assert_eq!(
             code,
-            "${escapeHtml(interval.v == null ? 'start' : 'clear')}"
+            "${$$blveEscapeHtml(interval.v == null ? 'start' : 'clear')}"
         );
     }
 }
 
 fn escape_html(s: &str) -> String {
-    format!("escapeHtml({})", s)
+    format!("$$blveEscapeHtml({})", s)
 }
 
 fn find_reactive_attr_from_id<'a>(

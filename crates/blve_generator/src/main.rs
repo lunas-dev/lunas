@@ -1,4 +1,5 @@
 mod generate_js;
+mod generate_statements;
 mod orig_html_struct;
 mod structs;
 mod transformers;
@@ -13,7 +14,7 @@ fn main() -> Result<(), String> {
     let args: Vec<String> = std::env::args().collect();
     let a = fs::read_to_string(format!("./sample/{}.blv", args[1])).unwrap();
     let b = parse_blve_file(a.as_str()).unwrap();
-    let code = generate_js_from_blocks(&b, None, None)?;
+    let code = generate_js_from_blocks(&b, None, None, None)?;
     println!("{}", code.0);
     Ok(())
 }
