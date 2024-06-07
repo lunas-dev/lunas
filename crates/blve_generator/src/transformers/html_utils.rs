@@ -41,6 +41,7 @@ pub fn check_html_elms(
     if_blk_ctx: &Vec<String>,
     element_location: &Vec<usize>,
     count_of_siblings: usize,
+    txt_node_to_be_deleted: bool,
 ) -> Result<(), String> {
     let node_id = node.uuid.clone();
     match &mut node.content {
@@ -191,9 +192,25 @@ pub fn check_html_elms(
 
             let count_of_siblings = element.children.len();
 
+            let element_children = element.children.clone();
             for (index, child_node) in element.children.iter_mut().enumerate() {
                 let mut new_element_location = element_location.clone();
                 new_element_location.push(index);
+
+                let txt_node_to_be_deleted = if index != 0 {
+                    match &element_children.get(index - 1).unwrap().content {
+                        NodeContent::Element(next_element) => {
+                            next_element
+                                .attributes_without_meta()
+                                .iter()
+                                .any(|f| f.0.starts_with(":if"))
+                                || component_names.contains(&next_element.tag_name)
+                        }
+                        _ => true,
+                    }
+                } else {
+                    false
+                };
 
                 check_html_elms(
                     varibale_names,
@@ -210,6 +227,7 @@ pub fn check_html_elms(
                     &ctx_array,
                     &new_element_location,
                     count_of_siblings,
+                    txt_node_to_be_deleted,
                 )?;
             }
 
@@ -425,7 +443,7 @@ pub fn check_html_elms(
                         },
                     ),
                 });
-            } else if dep_vars.len() > 0 && count_of_siblings > 1 {
+            } else if dep_vars.len() > 0 && count_of_siblings > 1 || txt_node_to_be_deleted {
                 html_manipulators.push(HtmlManipulator {
                     target_uuid: parent_uuid.unwrap().clone(),
                     manipulations: HtmlManipulation::RemoveChildTextNode(RemoveChildTextNode {
