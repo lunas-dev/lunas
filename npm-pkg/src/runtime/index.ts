@@ -27,7 +27,7 @@ type BlveInternalElement = {
   topElmAttr: { [key: string]: string };
 };
 
-export const __BLVE_INIT_COMPONENT = function (this: BlveComponent) {
+export const $$blveInitComponent = function (this: BlveComponent) {
   this.updatedFlag = false;
   this.valUpdateMap = 0;
   this.blkRenderedMap = 0;
@@ -148,13 +148,13 @@ export const __BLVE_INIT_COMPONENT = function (this: BlveComponent) {
   }.bind(this);
 
   return {
-    __BLVE_SET_COMPONENT_ELEMENT: componentElementSetter,
-    __BLVE_UPDATE_COMPONENT: updateComponent,
-    __BLVE_AFTER_MOUNT: setAfterMount,
-    __BLVE_REACTIVE: createReactive,
-    __BLVE_CREATE_IF_BLOCK: createIfBlock,
-    __BLVE_RENDER_IF_BLOCK: renderIfBlock,
-    __BLVE_COMPONENT_RETURN: {
+    $$blveSetComponentElement: componentElementSetter,
+    $$blveUpdateComponent: updateComponent,
+    $$blveAfterMount: setAfterMount,
+    $$blveReactive: createReactive,
+    $$blveCreateIfBlock: createIfBlock,
+    $$blveRenderIfBlock: renderIfBlock,
+    $$blveComponentReturn: {
       mount,
       insert,
     },
@@ -183,7 +183,7 @@ class valueObj<T> {
   }
 }
 
-export function __BLVE_ESCAPE_HTML(text: any): string {
+export function $$blveEscapeHtml(text: any): string {
   const map: { [key: string]: string } = {
     "&": "&amp;",
     "<": "&lt;",
@@ -197,7 +197,7 @@ export function __BLVE_ESCAPE_HTML(text: any): string {
   });
 }
 
-export function __BLVE_GET_ELM_REFS(ids: string[], preserveId: number) {
+export function $$blveGetElmRefs(ids: string[], preserveId: number) {
   return ids.map((id, index) => {
     const e = document.getElementById(id)!;
     (2 ** index) & preserveId && e.removeAttribute("id");
@@ -205,7 +205,7 @@ export function __BLVE_GET_ELM_REFS(ids: string[], preserveId: number) {
   });
 }
 
-export function __BLVE_ADD_EV_LISTENER(
+export function $$blveAddEvListener(
   elm: HTMLElement,
   evName: string,
   evFunc: EventListener
@@ -213,19 +213,15 @@ export function __BLVE_ADD_EV_LISTENER(
   elm.addEventListener(evName, evFunc);
 }
 
-export function __BLVE_REPLACE_TEXT(content: any, elm: Node) {
-  elm.textContent = __BLVE_ESCAPE_HTML(content);
+export function $$blveReplaceText(content: any, elm: Node) {
+  elm.textContent = $$blveEscapeHtml(content);
 }
 
-export function __BLVE_REPLACE_INNER_HTML(content: any, elm: HTMLElement) {
-  elm.innerHTML = __BLVE_ESCAPE_HTML(content);
+export function $$blveReplaceInnerHtml(content: any, elm: HTMLElement) {
+  elm.innerHTML = $$blveEscapeHtml(content);
 }
 
-export function __BLVE_REPLACE_ATTR(
-  key: string,
-  content: any,
-  elm: HTMLElement
-) {
+export function $$blveReplaceAttr(key: string, content: any, elm: HTMLElement) {
   if (content === undefined && elm.hasAttribute(key)) {
     elm.removeAttribute(key);
     return;
@@ -233,7 +229,7 @@ export function __BLVE_REPLACE_ATTR(
   (elm as any)[key] = String(content);
 }
 
-export function __BLVE_INSERT_EMPTY(
+export function $$blveInsertEmpty(
   parent: HTMLElement,
   anchor: HTMLElement | null
 ) {
@@ -242,7 +238,7 @@ export function __BLVE_INSERT_EMPTY(
   return empty;
 }
 
-export function __BLVE_INSERT_CONTENT(
+export function $$blveInsertContent(
   content: string,
   parent: HTMLElement,
   anchor: HTMLElement | null
@@ -252,7 +248,7 @@ export function __BLVE_INSERT_CONTENT(
   return contentNode;
 }
 
-export function __CREATE_BLVE_ELEMENT(
+export function $$createBlveElement(
   innerHtml: string,
   topElmTag: string,
   topElmAttr: { [key: string]: string }

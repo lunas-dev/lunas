@@ -106,7 +106,7 @@ pub fn generate_js_from_blocks(
     // Generate JavaScript
     let html_insert = format!(
         "{};",
-        create_blve_internal_component_statement(&new_elm, "__BLVE_SET_COMPONENT_ELEMENT")
+        create_blve_internal_component_statement(&new_elm, "$$blveSetComponentElement")
     );
     let mut codes = vec![js_output, html_insert];
 
@@ -147,7 +147,7 @@ pub fn generate_js_from_blocks(
         .collect::<Vec<String>>()
         .join("\n");
     let after_mount_func_code = format!(
-        r#"__BLVE_AFTER_MOUNT(function () {{
+        r#"$$blveAfterMount(function () {{
 {}
 }});
 "#,
@@ -155,7 +155,7 @@ pub fn generate_js_from_blocks(
     );
     codes.push(after_mount_func_code);
 
-    codes.push("return __BLVE_COMPONENT_RETURN;".to_string());
+    codes.push("return $$blveComponentReturn;".to_string());
 
     let full_js_code = gen_full_code(no_export, export_name, runtime_path, imports_string, codes);
     let css_code = blocks.detailed_language_blocks.css.clone();
@@ -183,10 +183,10 @@ fn gen_full_code(
         .collect::<Vec<String>>()
         .join("\n");
     format!(
-        r#"import {{ __BLVE_ADD_EV_LISTENER, __BLVE_ESCAPE_HTML, __BLVE_GET_ELM_REFS, __BLVE_INIT_COMPONENT, __BLVE_REPLACE_INNER_HTML, __BLVE_REPLACE_TEXT, __BLVE_REPLACE_ATTR, __BLVE_INSERT_EMPTY, __BLVE_INSERT_CONTENT, __CREATE_BLVE_ELEMENT }} from "{}";{}
+        r#"import {{ $$blveAddEvListener, $$blveEscapeHtml, $$blveGetElmRefs, $$blveInitComponent, $$blveReplaceInnerHtml, $$blveReplaceText, $$blveReplaceAttr, $$blveInsertEmpty, $$blveInsertContent, $$createBlveElement }} from "{}";{}
 
 {}function() {{
-    const {{ __BLVE_SET_COMPONENT_ELEMENT, __BLVE_UPDATE_COMPONENT, __BLVE_COMPONENT_RETURN, __BLVE_AFTER_MOUNT, __BLVE_REACTIVE, __BLVE_RENDER_IF_BLOCK, __BLVE_CREATE_IF_BLOCK }} = new __BLVE_INIT_COMPONENT();
+    const {{ $$blveSetComponentElement, $$blveUpdateComponent, $$blveComponentReturn, $$blveAfterMount, $$blveReactive, $$blveRenderIfBlock, $$blveCreateIfBlock }} = new $$blveInitComponent();
 {}
 }}"#,
         runtime_path, imports_string, func_decl, code,
@@ -224,12 +224,12 @@ pub fn gen_ref_getter_from_needed_ids(
     ref_getter_str.push_str(
         needed_ids_to_get_here
             .iter()
-            .map(|id| format!("__BLVE_{}_REF", id.node_id))
+            .map(|id| format!("$$blve{}Ref", id.node_id))
             .collect::<Vec<String>>()
             .join(", ")
             .as_str(),
     );
-    ref_getter_str.push_str("] = __BLVE_GET_ELM_REFS([");
+    ref_getter_str.push_str("] = $$blveGetElmRefs([");
     ref_getter_str.push_str(
         needed_ids_to_get_here
             .iter()
@@ -257,7 +257,7 @@ pub fn create_event_listener(
             continue;
         }
         result.push(format!(
-            "__BLVE_ADD_EV_LISTENER(__BLVE_{}_REF, \"{}\", {});",
+            "$$blveAddEvListener($$blve{}Ref, \"{}\", {});",
             action_and_target.target,
             action_and_target.action_name,
             action_and_target.action.to_string()
@@ -275,12 +275,12 @@ fn generate_if_block_ref_var_decl(
     if if_blocks_info.len() > 0 {
         let mut variables_to_declare = HashSet::new();
         for if_block_info in if_blocks_info.iter() {
-            variables_to_declare.insert(format!("__BLVE_{}_REF", if_block_info.if_blk_id));
+            variables_to_declare.insert(format!("$$blve{}Ref", if_block_info.if_blk_id));
         }
 
         for needed_id in needed_id.iter() {
             if needed_id.ctx.len() != 0 {
-                variables_to_declare.insert(format!("__BLVE_{}_REF", needed_id.node_id.clone()));
+                variables_to_declare.insert(format!("$$blve{}Ref", needed_id.node_id.clone()));
             }
         }
 
@@ -289,13 +289,13 @@ fn generate_if_block_ref_var_decl(
                 crate::structs::transform_info::TextNodeRenderer::ManualRenderer(txt_renderer) => {
                     if txt_renderer.ctx.len() != 0 {
                         variables_to_declare
-                            .insert(format!("__BLVE_{}_TEXT", txt_renderer.text_node_id.clone()));
+                            .insert(format!("$$blve{}Text", txt_renderer.text_node_id.clone()));
                     }
                 }
                 crate::structs::transform_info::TextNodeRenderer::IfBlockRenderer(if_renderer) => {
                     if if_renderer.ctx_over_if.len() != 0 {
                         variables_to_declare
-                            .insert(format!("__BLVE_{}_ANCHOR", if_renderer.if_blk_id.clone()));
+                            .insert(format!("$$blve{}Anchor", if_renderer.if_blk_id.clone()));
                     }
                 }
                 crate::structs::transform_info::TextNodeRenderer::CustomComponentRenderer(
@@ -303,7 +303,7 @@ fn generate_if_block_ref_var_decl(
                 ) => {
                     if custom_renderer.ctx.len() != 0 {
                         variables_to_declare.insert(format!(
-                            "__BLVE_{}_ANCHOR",
+                            "$$blve{}Anchor",
                             custom_renderer.custom_component_block_id.clone()
                         ));
                     }
@@ -358,9 +358,9 @@ fn gen_on_update_func(
             if_blk_rendering_cond,
             combined_number,
             if_block_info.condition,
-            format!("__BLVE_RENDER_IF_BLOCK(\"{}\")", &if_block_info.if_blk_id),
-            format!("__BLVE_{}_REF.remove()", &if_block_info.if_blk_id),
-            format!("__BLVE_{}_REF = null", &if_block_info.if_blk_id),
+            format!("$$blveRenderIfBlock(\"{}\")", &if_block_info.if_blk_id),
+            format!("$$blve{}Ref.remove()", &if_block_info.if_blk_id),
+            format!("$$blve{}Ref = null", &if_block_info.if_blk_id),
             format!("this.blkRenderedMap ^= {}", index + 1),
         ));
     }
@@ -392,7 +392,7 @@ fn gen_on_update_func(
                     };
 
                     replace_statements.push(format!(
-                        "{}this.valUpdateMap & {:?} && __BLVE_REPLACE_ATTR(\"{}\", {}, __BLVE_{}_REF);",
+                        "{}this.valUpdateMap & {:?} && $$blveReplaceAttr(\"{}\", {}, $$blve{}Ref);",
                         if_blk_rendering_cond,
                         get_combined_binary_number(dep_vars_assined_numbers),
                         c.attribute_key,
@@ -440,7 +440,7 @@ fn gen_on_update_func(
                 };
 
                 replace_statements.push(format!(
-                    "{}{} && __BLVE_REPLACE_TEXT(`{}`, __BLVE_{}_REF);",
+                    "{}{} && $$blveReplaceText(`{}`, $$blve{}Ref);",
                     if_blk_rendering_cond,
                     to_update_cond,
                     elm_and_variable_relation.content_of_element.trim(),
@@ -488,7 +488,7 @@ fn gen_on_update_func(
                 };
 
                 replace_statements.push(format!(
-                    "{}{} && __BLVE_REPLACE_TEXT(`{}`, __BLVE_{}_TEXT);",
+                    "{}{} && $$blveReplaceText(`{}`, $$blve{}Text);",
                     if_blk_rendering_cond,
                     to_update_cond,
                     txt_and_var_content.content_of_element.trim(),
@@ -505,7 +505,7 @@ fn gen_on_update_func(
         .join("\n");
 
     let result = format!(
-        r#"__BLVE_UPDATE_COMPONENT(function () {{
+        r#"$$blveUpdateComponent(function () {{
 {code}
 }});"#,
         code = code
@@ -526,7 +526,7 @@ pub fn gen_create_anchor_statements(
                     continue;
                 }
                 let anchor_id = match &txt_renderer.target_anchor_id {
-                    Some(anchor_id) => format!("__BLVE_{}_REF", anchor_id),
+                    Some(anchor_id) => format!("$$blve{}Ref", anchor_id),
                     None => "null".to_string(),
                 };
                 let variable_declaration_word = match ctx_condition.len() != 0 {
@@ -535,7 +535,7 @@ pub fn gen_create_anchor_statements(
                     false => "const ",
                 };
                 let create_anchor_statement = format!(
-                    "{}__BLVE_{}_TEXT = __BLVE_INSERT_CONTENT(`{}`,__BLVE_{}_REF,{});",
+                    "{}$$blve{}Text = $$blveInsertContent(`{}`,$$blve{}Ref,{});",
                     &variable_declaration_word,
                     &txt_renderer.text_node_id,
                     &txt_renderer.content.trim(),
@@ -551,7 +551,7 @@ pub fn gen_create_anchor_statements(
                             continue;
                         }
                         let anchor_id = match &if_block.target_anchor_id {
-                            Some(anchor_id) => format!("__BLVE_{}_REF", anchor_id),
+                            Some(anchor_id) => format!("$$blve{}Ref", anchor_id),
                             None => "null".to_string(),
                         };
                         let variable_declaration_word = match ctx_condition.len() != 0 {
@@ -560,7 +560,7 @@ pub fn gen_create_anchor_statements(
                             false => "const ",
                         };
                         let create_anchor_statement = format!(
-                            "{}__BLVE_{}_ANCHOR = __BLVE_INSERT_EMPTY(__BLVE_{}_REF,{});",
+                            "{}$$blve{}Anchor = $$blveInsertEmpty($$blve{}Ref,{});",
                             variable_declaration_word,
                             if_block.if_blk_id,
                             if_block.parent_id,
@@ -579,7 +579,7 @@ pub fn gen_create_anchor_statements(
                         continue;
                     }
                     let anchor_id = match &custom_component.target_anchor_id {
-                        Some(anchor_id) => format!("__BLVE_{}_REF", anchor_id),
+                        Some(anchor_id) => format!("$$blve{}Ref", anchor_id),
                         None => "null".to_string(),
                     };
                     let variable_declaration_word = match ctx_condition.len() != 0 {
@@ -588,7 +588,7 @@ pub fn gen_create_anchor_statements(
                         false => "const ",
                     };
                     let create_anchor_statement = format!(
-                        "{}__BLVE_{}_ANCHOR = __BLVE_INSERT_EMPTY(__BLVE_{}_REF,{});",
+                        "{}$$blve{}Anchor = $$blveInsertEmpty($$blve{}Ref,{});",
                         variable_declaration_word,
                         custom_component.custom_component_block_id,
                         custom_component.parent_id,
@@ -617,7 +617,7 @@ pub fn gen_render_custom_component_statements(
             match custom_component_block.distance_to_next_elm > 1 {
                 true => {
                     render_custom_statements.push(format!(
-                        "const __BLVE_{}_COMP = {}().insert(__BLVE_{}_REF, __BLVE_{}_ANCHOR);",
+                        "const $$blve{}Comp = {}().insert($$blve{}Ref, $$blve{}Anchor);",
                         custom_component_block.custom_component_block_id,
                         custom_component_block.component_name,
                         custom_component_block.parent_id,
@@ -626,11 +626,11 @@ pub fn gen_render_custom_component_statements(
                 }
                 false => {
                     let anchor_ref_name = match &custom_component_block.target_anchor_id {
-                        Some(anchor_id) => format!("__BLVE_{}_REF", anchor_id),
+                        Some(anchor_id) => format!("$$blve{}Ref", anchor_id),
                         None => "null".to_string(),
                     };
                     render_custom_statements.push(format!(
-                        "const __BLVE_{}_COMP = {}().insert(__BLVE_{}_REF, {});",
+                        "const $$blve{}Comp = {}().insert($$blve{}Ref, {});",
                         custom_component_block.custom_component_block_id,
                         custom_component_block.component_name,
                         custom_component_block.parent_id,
@@ -640,7 +640,7 @@ pub fn gen_render_custom_component_statements(
             }
         } else {
             render_custom_statements.push(format!(
-                "const __BLVE_{}_COMP = {}().mount(__BLVE_{}_REF);",
+                "const $$blve{}Comp = {}().mount($$blve{}Ref);",
                 custom_component_block.custom_component_block_id,
                 custom_component_block.component_name,
                 custom_component_block.parent_id

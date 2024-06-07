@@ -497,12 +497,12 @@ fn set_id_for_needed_elm(
 
 // FIXME:カッコが複数でも、escapeTextは各バインディングに1つだけでいい
 // 具体例:
-// 現在:${__BLVE_ESCAPE_HTML(count.v+count.v)} count ${__BLVE_ESCAPE_HTML(count)} ${__BLVE_ESCAPE_HTML( count + count )}
-// 将来的:${__BLVE_ESCAPE_HTML(`${count.v+count.v} count ${count} ${ count + count }`)}
+// 現在:${$$blveEscapeHtml(count.v+count.v)} count ${$$blveEscapeHtml(count)} ${$$blveEscapeHtml( count + count )}
+// 将来的:${$$blveEscapeHtml(`${count.v+count.v} count ${count} ${ count + count }`)}
 
 // カッコが1つだけの場合、その部分のみをエスケープする
 // Give: <div>    ${count} </div>
-// Want: <div>    ${__BLVE_ESCAPE_HTML(count)} </div>
+// Want: <div>    ${$$blveEscapeHtml(count)} </div>
 // TODO: count_of_bindingsの返却をやめる
 fn replace_text_with_reactive_value(
     code: &mut String,
@@ -577,24 +577,24 @@ mod tests {
 
     #[test]
     fn exploration() {
-        let code = "__BLVE_ESCAPE_HTML(count2.v+count.v)";
+        let code = "$$blveEscapeHtml(count2.v+count.v)";
         let mut code = code.clone().to_string();
         replace_text_with_reactive_value(
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
         );
-        assert_eq!(code, "__BLVE_ESCAPE_HTML(count2.v+count.v)");
+        assert_eq!(code, "$$blveEscapeHtml(count2.v+count.v)");
     }
 
     #[test]
     fn exploration2() {
-        let code = "__BLVE_ESCAPE_HTML( count2.v + count.v )";
+        let code = "$$blveEscapeHtml( count2.v + count.v )";
         let mut code = code.clone().to_string();
         replace_text_with_reactive_value(
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
         );
-        assert_eq!(code, "__BLVE_ESCAPE_HTML( count2.v + count.v )");
+        assert_eq!(code, "$$blveEscapeHtml( count2.v + count.v )");
     }
 
     #[test]
@@ -604,13 +604,13 @@ mod tests {
         replace_text_with_reactive_value(&mut code, &vec!["interval".to_string()]);
         assert_eq!(
             code,
-            "${__BLVE_ESCAPE_HTML(interval.v == null ? 'start' : 'clear')}"
+            "${$$blveEscapeHtml(interval.v == null ? 'start' : 'clear')}"
         );
     }
 }
 
 fn escape_html(s: &str) -> String {
-    format!("__BLVE_ESCAPE_HTML({})", s)
+    format!("$$blveEscapeHtml({})", s)
 }
 
 fn find_reactive_attr_from_id<'a>(
