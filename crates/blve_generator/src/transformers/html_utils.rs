@@ -25,7 +25,6 @@ use super::utils::{append_v_to_vars_in_html, UUID_GENERATOR};
 // TODO:この関数の責務が多すぎるので、可能な限り分離させる
 // TODO:dep_vars の使い方を再考する
 // TODO: 引数が大きすぎるので、共通の目的を持った引数はstructとしてグループ化する
-// RCを使用して、子から親のmutableな変数を参照できるようにする可能性も視野に入れる
 pub fn check_html_elms(
     varibale_names: &Vec<String>,
     component_names: &Vec<String>,
@@ -166,8 +165,7 @@ pub fn check_html_elms(
                 }
             }
 
-            // もし、tag_nameとcomponent_namesが一致した場合
-
+            // When the tag_name corresponds to the component_names
             if component_names.contains(&element.tag_name) {
                 html_manipulators.push(HtmlManipulator {
                     target_uuid: parent_uuid.unwrap().clone(),

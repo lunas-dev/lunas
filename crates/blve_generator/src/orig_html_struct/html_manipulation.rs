@@ -14,7 +14,7 @@ pub enum HtmlManipulation {
 
 #[derive(Debug, Clone)]
 pub struct RemoveChildForIfStatement {
-    // FIXME: child_uuidとblock_idが同じ
+    // FIXME: child_uuid is exactly the same as block_id
     pub child_uuid: String,
     pub condition: String,
     pub block_id: String,
