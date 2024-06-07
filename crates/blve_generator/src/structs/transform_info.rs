@@ -29,6 +29,7 @@ pub struct ActionAndTarget {
     pub action_name: String,
     pub action: EventTarget,
     pub target: String,
+    pub ctx: Vec<String>,
 }
 
 // FIXME: 命名

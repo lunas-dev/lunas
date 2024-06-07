@@ -1,7 +1,9 @@
 use crate::{
-    generate_js::gen_ref_getter_from_needed_ids,
+    generate_js::{
+        create_event_listener, gen_create_anchor_statements, gen_ref_getter_from_needed_ids,
+    },
     orig_html_struct::structs::NodeContent,
-    structs::transform_info::{IfBlockInfo, NeededIdName},
+    structs::transform_info::{ActionAndTarget, IfBlockInfo, NeededIdName, TextNodeRendererGroup},
     transformers::html_utils::create_blve_internal_component_statement,
 };
 
@@ -11,6 +13,8 @@ use super::utils::create_indent;
 pub fn gen_render_if_blk_func(
     if_block_info: &Vec<IfBlockInfo>,
     needed_ids: &Vec<NeededIdName>,
+    actions_and_targets: &Vec<ActionAndTarget>,
+    text_node_renderer: &TextNodeRendererGroup,
 ) -> Vec<String> {
     let mut render_if = vec![];
 
@@ -23,18 +27,23 @@ pub fn gen_render_if_blk_func(
             _ => panic!(),
         };
 
-        // TODO:一連の生成コードを、need_idのmethodとして関数にまとめる
+        let mut rendering_statement = vec![];
+
         let ref_getter_str = gen_ref_getter_from_needed_ids(
             needed_ids,
             &Some(if_block),
             &Some(&if_block.ctx_under_if),
         );
+        rendering_statement.push(ref_getter_str.as_str());
+
+        let ev_listener_code = create_event_listener(actions_and_targets, &if_block.ctx_under_if);
+        if ev_listener_code.len() != 0 {
+            rendering_statement.extend(ev_listener_code.iter().map(|x| x.as_str()));
+        }
 
         // if there are children if block under the if block, render them
         let children = if_block.find_children(&if_block_info);
 
-        let mut rendering_statement = "".to_string();
-        rendering_statement.push_str(ref_getter_str.as_str());
         let child_block_rendering_exec = if children.len() != 0 {
             let mut child_block_rendering_exec = vec![];
             for child_if in children {
@@ -47,7 +56,9 @@ pub fn gen_render_if_blk_func(
         } else {
             vec![]
         };
-        rendering_statement.push_str(child_block_rendering_exec.join("\n").as_str());
+        rendering_statement.extend(child_block_rendering_exec.iter().map(|x| x.as_str()));
+        let gen_anchor = gen_create_anchor_statements(&text_node_renderer, &if_block.ctx_under_if);
+        rendering_statement.extend(gen_anchor.iter().map(|x| x.as_str()));
 
         let name_of_parent_of_if_blk = format!("__BLVE_{}_REF", if_block.parent_id);
         let name_of_anchor_of_if_blk = match if_block.distance_to_next_elm > 1 {
@@ -61,13 +72,13 @@ pub fn gen_render_if_blk_func(
             },
         };
 
-        let if_on_create = match rendering_statement == "" {
+        let if_on_create = match rendering_statement.len() == 0 {
             true => "() => {}".to_string(),
             false => format!(
                 r#"function() {{
 {}
 }}"#,
-                create_indent(rendering_statement.as_str()),
+                create_indent(rendering_statement.join("\n").as_str()),
             ),
         };
 
