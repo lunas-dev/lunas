@@ -31,6 +31,7 @@ export const __BLVE_INIT_COMPONENT = function (this: BlveComponent) {
   this.blkRenderedMap = 0;
   this.blkUpdateMap = 0;
   this.current_bit = 0;
+  this.isMounted = false;
 
   const genBit = function* (this: BlveComponent) {
     while (true) {
@@ -61,7 +62,11 @@ export const __BLVE_INIT_COMPONENT = function (this: BlveComponent) {
     this.__blve_after_mount = afterMount;
   }.bind(this);
 
-  const mount = function (this: BlveComponent, elm: HTMLElement) {
+  const mount = function (
+    this: BlveComponent,
+    elm: HTMLElement
+  ): BlveComponent {
+    if (this.isMounted) throw new Error("Component is already mounted");
     elm.innerHTML = `<${this.internalElement.topElmTag} ${Object.keys(
       this.internalElement.topElmAttr
     )
@@ -71,13 +76,14 @@ export const __BLVE_INIT_COMPONENT = function (this: BlveComponent) {
     }>`;
     this.__blve_after_mount();
     this.isMounted = true;
+    return this;
   }.bind(this);
 
   const insertBefore = function (
     this: BlveComponent,
     elm: HTMLElement,
     anchor: HTMLElement | null
-  ) {
+  ): BlveComponent {
     if (this.isMounted) throw new Error("Component is already mounted");
     const componentElm = document.createElement(this.internalElement.topElmTag);
     Object.keys(this.internalElement.topElmAttr).forEach((key) => {
@@ -87,13 +93,13 @@ export const __BLVE_INIT_COMPONENT = function (this: BlveComponent) {
     elm.insertBefore(componentElm, anchor);
     this.__blve_after_mount();
     this.isMounted = true;
+    return this;
   }.bind(this);
 
   const updateComponent = function (
     this: BlveComponent,
     updateFunc: () => void
   ) {
-    if (this.isMounted) throw new Error("Component is already mounted");
     this.__blve_update = (() => {
       if (!this.updatedFlag) return;
       updateFunc.call(this);

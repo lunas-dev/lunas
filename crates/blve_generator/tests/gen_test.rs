@@ -28,7 +28,7 @@ fn main() -> Result<(), String> {
         println!("./tests/cases/{}.blv", &file_name);
         let a = fs::read_to_string(format!("./tests/cases/{}.blv", &file_name)).unwrap();
         let b = parse_blve_file(a.as_str()).unwrap();
-        let code = blve_compile_from_block(&b, None, None)?;
+        let code = blve_compile_from_block(&b, None, None, None)?;
         println!("{}", code.0);
         fs::write(format!("./tests/cases/{}.js", file_name), code.0).unwrap();
     }

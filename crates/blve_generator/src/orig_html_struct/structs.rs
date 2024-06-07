@@ -32,7 +32,11 @@ impl Element {
         }
     }
 
-    pub fn remove_child(&mut self, child_uuid: &String) -> (Node, u64, u64, Option<u64>) {
+    pub fn remove_child(
+        &mut self,
+        child_uuid: &String,
+        custom_component_names: &Vec<String>,
+    ) -> (Node, u64, u64, Option<u64>) {
         let idx = self
             .children
             .iter()
@@ -46,7 +50,9 @@ impl Element {
             let cur_child = &self.children[cur];
             match &cur_child.content {
                 NodeContent::Element(elm) => {
-                    if !elm.attributes.contains_key("$$$conditional$$$") {
+                    if !elm.attributes.contains_key("$$$conditional$$$")
+                        && !custom_component_names.contains(&elm.tag_name)
+                    {
                         break (cur as u64 - idx as u64, Some(cur as u64));
                     }
                 }

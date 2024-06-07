@@ -3,15 +3,15 @@ use nanoid::nanoid;
 use crate::{
     orig_html_struct::{
         html_manipulation::{
-            HtmlManipulation, HtmlManipulator, RemoveChildForIfStatement, RemoveChildTextNode,
-            SetIdToParentForChildReactiveText,
+            HtmlManipulation, HtmlManipulator, RemoveChildForCustomComponent,
+            RemoveChildForIfStatement, RemoveChildTextNode, SetIdToParentForChildReactiveText,
         },
         structs::{Element, Node, NodeContent},
     },
     structs::{
         transform_info::{
-            ActionAndTarget, EventBindingStatement, EventTarget, IfBlockInfo,
-            ManualRendererForTextNode, NeededIdName,
+            ActionAndTarget, CustomComponentBlockInfo, EventBindingStatement, EventTarget,
+            IfBlockInfo, ManualRendererForTextNode, NeededIdName,
         },
         transform_targets::{
             ElmAndReactiveAttributeRelation, ElmAndVariableContentRelation, NodeAndReactiveInfo,
@@ -25,9 +25,9 @@ use super::utils::{append_v_to_vars_in_html, UUID_GENERATOR};
 // TODO:この関数の責務が多すぎるので、可能な限り分離させる
 // TODO:dep_vars の使い方を再考する
 // TODO: 引数が大きすぎるので、共通の目的を持った引数はstructとしてグループ化する
-// RCを使用して、子から親のmutableな変数を参照できるようにする可能性も視野に入れる
 pub fn check_html_elms(
     varibale_names: &Vec<String>,
+    component_names: &Vec<String>,
     node: &mut Node,
     // TODO: needed_idsからリネーム
     needed_ids: &mut Vec<NeededIdName>,
@@ -36,6 +36,7 @@ pub fn check_html_elms(
     parent_uuid: Option<&String>,
     html_manipulators: &mut Vec<HtmlManipulator>,
     if_blocks_info: &mut Vec<IfBlockInfo>,
+    custom_component_blocks_info: &mut Vec<CustomComponentBlockInfo>,
     txt_node_renderer: &mut Vec<ManualRendererForTextNode>,
     if_blk_ctx: &Vec<String>,
     element_location: &Vec<usize>,
@@ -163,6 +164,23 @@ pub fn check_html_elms(
                     reactive_attr_info.reactive_attr.push(reactive_attr);
                 }
             }
+
+            // When the tag_name corresponds to the component_names
+            if component_names.contains(&element.tag_name) {
+                html_manipulators.push(HtmlManipulator {
+                    target_uuid: parent_uuid.unwrap().clone(),
+                    manipulations: HtmlManipulation::RemoveChildForCustomComponent(
+                        RemoveChildForCustomComponent {
+                            component_name: element.tag_name.clone(),
+                            child_uuid: node.uuid.clone(),
+                            block_id: node.uuid.clone(),
+                            ctx: ctx_array.clone(),
+                            elm_loc: element_location.clone(),
+                        },
+                    ),
+                });
+            }
+
             let count_of_siblings = element.children.len();
 
             for (index, child_node) in element.children.iter_mut().enumerate() {
@@ -171,6 +189,7 @@ pub fn check_html_elms(
 
                 check_html_elms(
                     varibale_names,
+                    component_names,
                     child_node,
                     needed_ids,
                     elm_and_var_relation,
@@ -178,6 +197,7 @@ pub fn check_html_elms(
                     Some(&node.uuid),
                     html_manipulators,
                     if_blocks_info,
+                    custom_component_blocks_info,
                     txt_node_renderer,
                     &ctx_array,
                     &new_element_location,
@@ -185,16 +205,15 @@ pub fn check_html_elms(
                 )?;
             }
 
-            println!("{:#?}", html_manipulators);
-
             // TODO: 下の処理を関数にまとめる
 
             html_manipulators.sort_by(|a, b| {
                 fn manip_to_ctx(manip: &HtmlManipulator) -> Vec<usize> {
                     match &manip.manipulations {
                         HtmlManipulation::RemoveChildForIfStatement(a) => a.elm_loc.clone(),
-                        HtmlManipulation::SetIdForReactiveContent(b) => b.elm_loc.clone(),
-                        HtmlManipulation::RemoveChildTextNode(c) => c.elm_loc.clone(),
+                        HtmlManipulation::RemoveChildForCustomComponent(b) => b.elm_loc.clone(),
+                        HtmlManipulation::SetIdForReactiveContent(c) => c.elm_loc.clone(),
+                        HtmlManipulation::RemoveChildTextNode(d) => d.elm_loc.clone(),
                     }
                 }
                 let aloc = manip_to_ctx(a);
@@ -214,7 +233,7 @@ pub fn check_html_elms(
                                 &remove_statement.ctx,
                             );
                             let (elm, _, distance, idx_of_ref) =
-                                element.remove_child(&remove_statement.child_uuid);
+                                element.remove_child(&remove_statement.child_uuid, component_names);
 
                             // TODO:remove_childにまとめる
                             let target_anchor_id = if let Some(idx_of_ref) = idx_of_ref {
@@ -256,6 +275,52 @@ pub fn check_html_elms(
                                 element_location: remove_statement.elm_loc.clone(),
                             });
                         }
+                        HtmlManipulation::RemoveChildForCustomComponent(remove_statement) => {
+                            set_id_for_needed_elm(
+                                element,
+                                needed_ids,
+                                &node_id,
+                                &remove_statement.ctx,
+                            );
+                            let (_, _, distance, idx_of_ref) =
+                                element.remove_child(&remove_statement.child_uuid, component_names);
+
+                            // TODO:remove_childにまとめる
+                            let target_anchor_id = if let Some(idx_of_ref) = idx_of_ref {
+                                let node_id =
+                                    &element.children[idx_of_ref as usize - 1].uuid.clone();
+                                Some(set_id_for_needed_elm(
+                                    match &mut element.children[idx_of_ref as usize - 1].content {
+                                        NodeContent::Element(elm) => elm,
+                                        _ => panic!("not element"),
+                                    },
+                                    needed_ids,
+                                    node_id,
+                                    // TODO: 親のctxを指定しているが、その旨が明示的ではないので、明示的にする
+                                    &if_blk_ctx,
+                                ));
+                                Some(node_id.clone())
+                            } else {
+                                None
+                            };
+                            let ref_text_node_id = match distance != 1 {
+                                true => Some(nanoid!()),
+                                false => None,
+                            };
+
+                            custom_component_blocks_info.push(CustomComponentBlockInfo {
+                                parent_id: node_id.clone(),
+                                target_if_blk_id: remove_statement.child_uuid.clone(),
+                                distance_to_next_elm: distance,
+                                have_sibling_elm: count_of_siblings > 1,
+                                target_anchor_id,
+                                component_name: remove_statement.component_name.clone(),
+                                ref_text_node_id,
+                                ctx: remove_statement.ctx.clone(),
+                                custom_component_block_id: UUID_GENERATOR.lock().unwrap().gen(),
+                                element_location: remove_statement.elm_loc.clone(),
+                            });
+                        }
                         HtmlManipulation::SetIdForReactiveContent(set_id) => {
                             set_id_for_needed_elm(element, needed_ids, &node_id, &set_id.ctx);
                             elm_and_var_relation.push(NodeAndReactiveInfo::ElmAndVariableRelation(
@@ -277,7 +342,7 @@ pub fn check_html_elms(
                             );
 
                             let (_, _, distance, idx_of_ref) =
-                                element.remove_child(&remove_text_node.child_uuid);
+                                element.remove_child(&remove_text_node.child_uuid, component_names);
                             // TODO:remove_childにまとめる
                             let target_anchor_id = if let Some(idx_of_ref) = idx_of_ref {
                                 let node_id =
