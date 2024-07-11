@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 #[derive(Debug, Clone)]
 pub struct HtmlManipulator {
     pub target_uuid: String,
@@ -27,6 +29,7 @@ pub struct RemoveChildForIfStatement {
 #[derive(Debug, Clone)]
 pub struct RemoveChildForCustomComponent {
     pub component_name: String,
+    pub attributes: HashMap<String, Option<String>>,
     pub child_uuid: String,
     pub block_id: String,
     pub ctx: Vec<String>,

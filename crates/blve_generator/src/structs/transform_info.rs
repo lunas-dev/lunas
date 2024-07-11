@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{orig_html_struct::structs::Node, transformers::utils::append_v_to_vars_in_html};
 
 #[derive(Debug, Clone)]
@@ -143,6 +145,61 @@ pub struct CustomComponentBlockInfo {
     pub ctx: Vec<String>,
     pub custom_component_block_id: String,
     pub element_location: Vec<usize>,
+    pub args: ComponentArgs,
+}
+
+#[derive(Debug, Clone)]
+pub struct ComponentArg {
+    pub name: String,
+    pub value: Option<String>,
+    pub bind: bool,
+}
+
+impl ToString for ComponentArg {
+    fn to_string(&self) -> String {
+        if self.bind {
+            // TODO: delete unwrap and add support for boolean attributes
+            format!("\"{}\": {}", self.name, self.value.clone().unwrap())
+        } else {
+            format!("\"{}\": \"{}\"", self.name, self.value.clone().unwrap())
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ComponentArgs {
+    pub args: Vec<ComponentArg>,
+}
+
+impl ComponentArgs {
+    /* pub attributes: HashMap<String, Option<String>>, */
+    pub fn new(attr: &HashMap<String, Option<String>>) -> Self {
+        let mut args: Vec<ComponentArg> = vec![];
+        for (key, value) in attr {
+            let bind = key.starts_with(":");
+            let key = key.trim_start_matches(":").to_string();
+            // TODO: add support for boolean attributes
+            args.push(ComponentArg {
+                name: key,
+                value: value.clone(),
+                bind,
+            });
+        }
+
+        ComponentArgs { args }
+    }
+
+    pub fn to_object(&self) -> String {
+        let obj_value = {
+            let mut args_str: Vec<String> = vec![];
+            for arg in &self.args {
+                args_str.push(arg.to_string());
+            }
+
+            args_str.join(", ")
+        };
+        format!("{{{}}}", obj_value)
+    }
 }
 
 #[derive(Debug, Clone)]

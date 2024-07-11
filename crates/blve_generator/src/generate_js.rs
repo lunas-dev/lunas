@@ -185,8 +185,8 @@ fn gen_full_code(
     format!(
         r#"import {{ $$blveAddEvListener, $$blveEscapeHtml, $$blveGetElmRefs, $$blveInitComponent, $$blveReplaceInnerHtml, $$blveReplaceText, $$blveReplaceAttr, $$blveInsertEmpty, $$blveInsertContent, $$createBlveElement }} from "{}";{}
 
-{}function() {{
-    const {{ $$blveSetComponentElement, $$blveUpdateComponent, $$blveComponentReturn, $$blveAfterMount, $$blveReactive, $$blveRenderIfBlock, $$blveCreateIfBlock }} = new $$blveInitComponent();
+{}function(args = {{}}) {{
+    const {{ $$blveSetComponentElement, $$blveUpdateComponent, $$blveComponentReturn, $$blveAfterMount, $$blveReactive, $$blveRenderIfBlock, $$blveCreateIfBlock }} = new $$blveInitComponent(args);
 {}
 }}"#,
         runtime_path, imports_string, func_decl, code,
@@ -617,9 +617,10 @@ pub fn gen_render_custom_component_statements(
             match custom_component_block.distance_to_next_elm > 1 {
                 true => {
                     render_custom_statements.push(format!(
-                        "const $$blve{}Comp = {}().insert($$blve{}Ref, $$blve{}Anchor);",
+                        "const $$blve{}Comp = {}({}).insert($$blve{}Ref, $$blve{}Anchor);",
                         custom_component_block.custom_component_block_id,
                         custom_component_block.component_name,
+                        custom_component_block.args.to_object(),
                         custom_component_block.parent_id,
                         custom_component_block.custom_component_block_id
                     ));
@@ -630,9 +631,10 @@ pub fn gen_render_custom_component_statements(
                         None => "null".to_string(),
                     };
                     render_custom_statements.push(format!(
-                        "const $$blve{}Comp = {}().insert($$blve{}Ref, {});",
+                        "const $$blve{}Comp = {}({}).insert($$blve{}Ref, {});",
                         custom_component_block.custom_component_block_id,
                         custom_component_block.component_name,
+                        custom_component_block.args.to_object(),
                         custom_component_block.parent_id,
                         anchor_ref_name
                     ));
@@ -640,9 +642,10 @@ pub fn gen_render_custom_component_statements(
             }
         } else {
             render_custom_statements.push(format!(
-                "const $$blve{}Comp = {}().mount($$blve{}Ref);",
+                "const $$blve{}Comp = {}({}).mount($$blve{}Ref);",
                 custom_component_block.custom_component_block_id,
                 custom_component_block.component_name,
+                custom_component_block.args.to_object(),
                 custom_component_block.parent_id
             ));
         }
