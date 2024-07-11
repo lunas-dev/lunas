@@ -11,17 +11,14 @@ use super::utils::add_or_remove_strings_to_script;
 
 pub fn analyze_js(
     blocks: &DetailedBlock,
-) -> (
-    Vec<VariableNameAndAssignedNumber>,
-    Vec<String>,
-    Vec<String>,
-    String,
-) {
+    initial_num: u32,
+    variables: &mut Vec<VariableNameAndAssignedNumber>,
+) -> (Vec<String>, Vec<String>, String) {
     if let Some(js_block) = &blocks.detailed_language_blocks.js {
         let mut positions = vec![];
         let mut imports = vec![];
         // find all variable declarations
-        let (variables, str_positions) = find_variable_declarations(&js_block.ast);
+        let str_positions = find_variable_declarations(&js_block.ast, initial_num, variables);
         // add all variable declarations to positions to add custom variable declaration function
         positions.extend(str_positions);
         let variable_names = variables.iter().map(|v| v.name.clone()).collect();
@@ -35,20 +32,21 @@ pub fn analyze_js(
         positions.extend(position_result);
         imports.extend(import_result);
         let output = add_or_remove_strings_to_script(positions, &js_block.raw);
-        (variables, variable_names, imports, output)
+        (variable_names, imports, output)
     } else {
-        (vec![], vec![], vec![], "".to_string())
+        (vec![], vec![], "".to_string())
     }
 }
 
 // Finds all variable declarations in a javascript file and returns a vector of VariableNameAndAssignedNumber structs
 fn find_variable_declarations(
     json: &Value,
-) -> (Vec<VariableNameAndAssignedNumber>, vec::Vec<TransformInfo>) {
+    initial_num: u32,
+    variables: &mut Vec<VariableNameAndAssignedNumber>,
+) -> vec::Vec<TransformInfo> {
     if let Some(Value::Array(body)) = json.get("body") {
-        let mut variables = vec![];
         let mut str_positions = vec![];
-        let mut num_generator = power_of_two_generator();
+        let mut num_generator = power_of_two_generator(initial_num);
         for body_item in body {
             if Some(&Value::String("VariableDeclaration".to_string())) == body_item.get("type") {
                 if let Some(Value::Array(declarations)) = body_item.get("declarations") {
@@ -106,15 +104,15 @@ fn find_variable_declarations(
                 }
             }
         }
-        (variables, str_positions)
+        str_positions
     } else {
-        (vec![], vec![])
+        vec![]
     }
 }
 
-fn power_of_two_generator() -> impl FnMut() -> u32 {
-    let mut count = 0;
-    move || {
+fn power_of_two_generator(init: u32) -> impl FnMut() -> u32 {
+    let mut count = 2u32.pow(init - 1);
+    move || -> u32 {
         let result = 2u32.pow(count);
         count += 1;
         result

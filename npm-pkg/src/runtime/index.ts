@@ -63,7 +63,8 @@ class valueObj<T> {
 
 export const $$blveInitComponent = function (
   this: BlveComponent,
-  args: { [key: string]: any } = {}
+  args: { [key: string]: any } = {},
+  inputs: string[] = []
 ) {
   this.updatedFlag = false;
   this.valUpdateMap = 0;
@@ -87,9 +88,12 @@ export const $$blveInitComponent = function (
     }
   }.bind(this);
 
-  for (const key in args) {
-    if (args[key] instanceof valueObj) {
-      args[key].addDependency(this, genBitOfVariables().next().value);
+  for (const key of inputs) {
+    const arg = args[key];
+    if (arg instanceof valueObj) {
+      arg.addDependency(this, genBitOfVariables().next().value);
+    } else {
+      genBitOfVariables().next();
     }
   }
 

@@ -1,4 +1,4 @@
-use blve_parser::{DetailedBlock, DetailedMetaData, UseComponentStatement};
+use blve_parser::{DetailedBlock, DetailedMetaData, PropsInput, UseComponentStatement};
 use std::collections::HashSet;
 
 use crate::{
@@ -16,6 +16,7 @@ use crate::{
     },
     transformers::{
         html_utils::{check_html_elms, create_blve_internal_component_statement},
+        inputs::generate_input_variable_decl,
         js_utils::analyze_js,
     },
 };
@@ -34,6 +35,14 @@ pub fn generate_js_from_blocks(
             _ => None,
         })
         .collect::<Vec<&UseComponentStatement>>();
+    let inputs = blocks
+        .detailed_meta_data
+        .iter()
+        .filter_map(|meta_data| match meta_data {
+            DetailedMetaData::PropsInput(use_component) => Some(use_component),
+            _ => None,
+        })
+        .collect::<Vec<&PropsInput>>();
 
     let component_names = use_component_statements
         .iter()
@@ -49,7 +58,12 @@ pub fn generate_js_from_blocks(
         false => runtime_path.unwrap(),
     };
 
-    let (variables, variable_names, mut imports, js_output) = analyze_js(blocks);
+    let mut variables = vec![];
+
+    let props_assignment = generate_input_variable_decl(&inputs, &mut variables);
+
+    let (variable_names, mut imports, js_output) =
+        analyze_js(blocks, inputs.len() as u32, &mut variables);
 
     for use_component in use_component_statements {
         imports.push(format!(
@@ -109,6 +123,10 @@ pub fn generate_js_from_blocks(
         create_blve_internal_component_statement(&new_elm, "$$blveSetComponentElement")
     );
     let mut codes = vec![js_output, html_insert];
+    match props_assignment.is_some() {
+        true => codes.insert(0, props_assignment.unwrap()),
+        false => {}
+    }
 
     let text_node_renderer_group = TextNodeRendererGroup::new(
         &if_blocks_info,
@@ -157,7 +175,14 @@ pub fn generate_js_from_blocks(
 
     codes.push("return $$blveComponentReturn;".to_string());
 
-    let full_js_code = gen_full_code(no_export, export_name, runtime_path, imports_string, codes);
+    let full_js_code = gen_full_code(
+        no_export,
+        export_name,
+        runtime_path,
+        imports_string,
+        codes,
+        inputs,
+    );
     let css_code = blocks.detailed_language_blocks.css.clone();
 
     Ok((full_js_code, css_code))
@@ -169,11 +194,23 @@ fn gen_full_code(
     runtime_path: String,
     imports_string: String,
     codes: Vec<String>,
+    inputs: Vec<&PropsInput>,
 ) -> String {
     let func_decl = if no_export {
         format!("const {} = ", export_name.unwrap_or("App".to_string()))
     } else {
         "export default ".to_string()
+    };
+
+    let arg_names_array = match inputs.len() == 0 {
+        true => "".to_string(),
+        false => {
+            let arr = inputs
+                .iter()
+                .map(|i| format!("\"{}\"", i.variable_name.clone()))
+                .collect::<Vec<String>>();
+            format!(", [{}]", arr.join(", "))
+        }
     };
 
     // codesにcreate_indentを適用して、\nでjoinする -> code
@@ -186,10 +223,10 @@ fn gen_full_code(
         r#"import {{ $$blveAddEvListener, $$blveEscapeHtml, $$blveGetElmRefs, $$blveInitComponent, $$blveReplaceInnerHtml, $$blveReplaceText, $$blveReplaceAttr, $$blveInsertEmpty, $$blveInsertContent, $$createBlveElement }} from "{}";{}
 
 {}function(args = {{}}) {{
-    const {{ $$blveSetComponentElement, $$blveUpdateComponent, $$blveComponentReturn, $$blveAfterMount, $$blveReactive, $$blveRenderIfBlock, $$blveCreateIfBlock }} = new $$blveInitComponent(args);
+    const {{ $$blveSetComponentElement, $$blveUpdateComponent, $$blveComponentReturn, $$blveAfterMount, $$blveReactive, $$blveRenderIfBlock, $$blveCreateIfBlock }} = new $$blveInitComponent(args{});
 {}
 }}"#,
-        runtime_path, imports_string, func_decl, code,
+        runtime_path, imports_string, func_decl, arg_names_array, code,
     )
 }
 
