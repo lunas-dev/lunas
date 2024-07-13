@@ -34,7 +34,11 @@ pub fn analyze_js(
         let output = add_or_remove_strings_to_script(positions, &js_block.raw);
         (variable_names, imports, output)
     } else {
-        (vec![], vec![], "".to_string())
+        let variable_names = variables
+            .iter()
+            .map(|v| v.name.clone())
+            .collect::<Vec<String>>();
+        (variable_names, vec![], "".to_string())
     }
 }
 
