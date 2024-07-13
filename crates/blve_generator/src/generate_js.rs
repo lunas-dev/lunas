@@ -23,8 +23,6 @@ use crate::{
 
 pub fn generate_js_from_blocks(
     blocks: &DetailedBlock,
-    no_export: Option<bool>,
-    export_name: Option<String>,
     runtime_path: Option<String>,
 ) -> Result<(String, Option<String>), String> {
     let use_component_statements = blocks
@@ -49,10 +47,6 @@ pub fn generate_js_from_blocks(
         .map(|use_component| use_component.component_name.clone())
         .collect::<Vec<String>>();
 
-    let no_export = match no_export.is_none() {
-        true => false,
-        false => no_export.unwrap(),
-    };
     let runtime_path = match runtime_path.is_none() {
         true => "blve/dist/runtime".to_string(),
         false => runtime_path.unwrap(),
@@ -176,8 +170,6 @@ pub fn generate_js_from_blocks(
     codes.push("return $$blveComponentReturn;".to_string());
 
     let full_js_code = gen_full_code(
-        no_export,
-        export_name,
         runtime_path,
         imports_string,
         codes,
@@ -189,19 +181,11 @@ pub fn generate_js_from_blocks(
 }
 
 fn gen_full_code(
-    no_export: bool,
-    export_name: Option<String>,
     runtime_path: String,
     imports_string: String,
     codes: Vec<String>,
     inputs: Vec<&PropsInput>,
 ) -> String {
-    let func_decl = if no_export {
-        format!("const {} = ", export_name.unwrap_or("App".to_string()))
-    } else {
-        "export default ".to_string()
-    };
-
     let arg_names_array = match inputs.len() == 0 {
         true => "".to_string(),
         false => {
@@ -222,11 +206,11 @@ fn gen_full_code(
     format!(
         r#"import {{ $$blveAddEvListener, $$blveEscapeHtml, $$blveGetElmRefs, $$blveInitComponent, $$blveReplaceInnerHtml, $$blveReplaceText, $$blveReplaceAttr, $$blveInsertEmpty, $$blveInsertContent, $$createBlveElement }} from "{}";{}
 
-{}function(args = {{}}) {{
+export default function(args = {{}}) {{
     const {{ $$blveSetComponentElement, $$blveUpdateComponent, $$blveComponentReturn, $$blveAfterMount, $$blveReactive, $$blveRenderIfBlock, $$blveCreateIfBlock }} = new $$blveInitComponent(args{});
 {}
 }}"#,
-        runtime_path, imports_string, func_decl, arg_names_array, code,
+        runtime_path, imports_string, arg_names_array, code,
     )
 }
 

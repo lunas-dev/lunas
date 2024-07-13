@@ -567,7 +567,7 @@ pub fn create_blve_internal_component_statement(
         code.push_str(", {");
         for (key, value) in attrs.iter() {
             let js_value = match value {
-                Some(value) => format!("\"{}\"", value),
+                Some(value) => format!("`{}`", value),
                 None => "null".to_string(),
             };
             code.push_str(&format!("\"{}\": {},", key, js_value));
