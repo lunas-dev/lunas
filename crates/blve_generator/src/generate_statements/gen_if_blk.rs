@@ -19,6 +19,7 @@ pub fn gen_render_if_blk_func(
     actions_and_targets: &Vec<ActionAndTarget>,
     text_node_renderer: &TextNodeRendererGroup,
     custom_component_blocks_info: &Vec<CustomComponentBlockInfo>,
+    variable_names: &Vec<String>,
 ) -> Vec<String> {
     let mut render_if = vec![];
 
@@ -51,6 +52,7 @@ pub fn gen_render_if_blk_func(
         let render_child_component = gen_render_custom_component_statements(
             &custom_component_blocks_info,
             &if_block.ctx_under_if,
+            &variable_names,
         );
         if render_child_component.len() != 0 {
             rendering_statement.extend(render_child_component.iter().map(|x| x.as_str()));

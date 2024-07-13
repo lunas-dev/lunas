@@ -105,6 +105,15 @@ pub fn append_v_to_vars_in_html(input: &str, variables: &Vec<String>) -> (String
     (modified_string, depending_vars)
 }
 
+pub fn convert_non_reactive_to_obj(input: &str, variables: &Vec<String>) -> String {
+    let parsed = parse_with_swc(&input.to_string());
+    let parsed_json = serde_json::to_value(&parsed).unwrap();
+    let positions = find_non_reactives(&parsed_json, &variables);
+    let modified_string = add_or_remove_strings_to_script(positions, &input.to_string());
+    modified_string
+}
+
+// TODO: Name this function more specifically
 pub fn search_json(json: &Value, variables: &Vec<String>) -> (Vec<TransformInfo>, Vec<String>) {
     let mut positions = vec![];
     let mut depending_vars = vec![];
@@ -141,4 +150,54 @@ pub fn search_json(json: &Value, variables: &Vec<String>) -> (Vec<TransformInfo>
         }
     }
     (positions, depending_vars)
+}
+
+pub fn find_non_reactives(json: &Value, variables: &Vec<String>) -> Vec<TransformInfo> {
+    let mut positions = vec![];
+
+    // When obj.type is ExpressionStatement
+    // AND obj.expression.type is Identifier
+    // AND obj.expression.value is in variables (= obj.expression.value is not reactive variable)
+    // mark them as non-reactive and make them object
+
+    if let Value::Object(obj) = json {
+        if obj.contains_key("type") && obj["type"] == Value::String("ExpressionStatement".into()) {
+            let expression = obj.get("expression").unwrap();
+            let expression_type = expression.get("type").unwrap();
+            let is_expression_type_identifier =
+                *expression_type == Value::String("Identifier".into());
+            let identifier_value_is_in_variables = if is_expression_type_identifier {
+                let value = expression.get("value").unwrap();
+                variables.iter().any(|e| e == value.as_str().unwrap())
+            } else {
+                false
+            };
+
+            if !(is_expression_type_identifier && identifier_value_is_in_variables) {
+                let span = expression.get("span").unwrap();
+                let end = span.get("end").unwrap();
+                let start = span.get("start").unwrap();
+                positions.push(TransformInfo::AddStringToPosition(AddStringToPosition {
+                    position: (end.as_u64().unwrap() - 1) as u32,
+                    string: ")".to_string(),
+                }));
+                positions.push(TransformInfo::AddStringToPosition(AddStringToPosition {
+                    position: (start.as_u64().unwrap() - 1) as u32,
+                    string: "$$blveCreateNonReactive(".to_string(),
+                }));
+
+                return positions;
+            }
+        }
+        for (_key, value) in obj {
+            let result_positions = find_non_reactives(value, variables);
+            positions.extend(result_positions);
+        }
+    } else if let Value::Array(arr) = json {
+        for value in arr {
+            let result_positions = find_non_reactives(value, variables);
+            positions.extend(result_positions);
+        }
+    }
+    positions
 }

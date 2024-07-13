@@ -19,6 +19,6 @@ pub fn generate_input_variable_decl(
         .join(", ");
     match inputs.len() == 0 {
         true => return None,
-        false => Some(format!("const {{{}}} = args;", prop_name)),
+        false => Some(format!("const {{ {} }} = args;", prop_name)),
     }
 }

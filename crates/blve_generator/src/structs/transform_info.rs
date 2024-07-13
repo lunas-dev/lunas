@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::{orig_html_struct::structs::Node, transformers::utils::append_v_to_vars_in_html};
+use crate::{
+    orig_html_struct::structs::Node,
+    transformers::utils::{append_v_to_vars_in_html, convert_non_reactive_to_obj},
+};
 
 #[derive(Debug, Clone)]
 pub enum TransformInfo {
@@ -155,13 +158,19 @@ pub struct ComponentArg {
     pub bind: bool,
 }
 
-impl ToString for ComponentArg {
-    fn to_string(&self) -> String {
+impl ComponentArg {
+    fn to_string(&self, variable_names: &Vec<String>) -> String {
         if self.bind {
             // TODO: delete unwrap and add support for boolean attributes
-            format!("\"{}\": {}", self.name, self.value.clone().unwrap())
+            let value_converted_to_obj =
+                convert_non_reactive_to_obj(&self.value.clone().unwrap().as_str(), variable_names);
+            format!("\"{}\": {}", self.name, value_converted_to_obj)
         } else {
-            format!("\"{}\": \"{}\"", self.name, self.value.clone().unwrap())
+            format!(
+                "\"{}\": $$blveCreateNonReactive(\"{}\")",
+                self.name,
+                self.value.clone().unwrap()
+            )
         }
     }
 }
@@ -189,11 +198,11 @@ impl ComponentArgs {
         ComponentArgs { args }
     }
 
-    pub fn to_object(&self) -> String {
+    pub fn to_object(&self, variable_names: &Vec<String>) -> String {
         let obj_value = {
             let mut args_str: Vec<String> = vec![];
             for arg in &self.args {
-                args_str.push(arg.to_string());
+                args_str.push(arg.to_string(variable_names));
             }
 
             args_str.join(", ")

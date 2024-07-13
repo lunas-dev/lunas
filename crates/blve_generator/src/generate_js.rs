@@ -145,10 +145,14 @@ pub fn generate_js_from_blocks(
         &action_and_target,
         &text_node_renderer_group,
         &custom_component_blocks_info,
+        &variable_names,
     );
     after_mount_code_array.extend(render_if);
-    let render_component =
-        gen_render_custom_component_statements(&custom_component_blocks_info, &vec![]);
+    let render_component = gen_render_custom_component_statements(
+        &custom_component_blocks_info,
+        &vec![],
+        &variable_names,
+    );
     after_mount_code_array.extend(render_component);
     after_mount_code_array.push("this.blkUpdateMap = 0".to_string());
     let update_func_code = gen_on_update_func(elm_and_var_relation, variables, if_blocks_info);
@@ -169,12 +173,7 @@ pub fn generate_js_from_blocks(
 
     codes.push("return $$blveComponentReturn;".to_string());
 
-    let full_js_code = gen_full_code(
-        runtime_path,
-        imports_string,
-        codes,
-        inputs,
-    );
+    let full_js_code = gen_full_code(runtime_path, imports_string, codes, inputs);
     let css_code = blocks.detailed_language_blocks.css.clone();
 
     Ok((full_js_code, css_code))
@@ -204,7 +203,7 @@ fn gen_full_code(
         .collect::<Vec<String>>()
         .join("\n");
     format!(
-        r#"import {{ $$blveAddEvListener, $$blveEscapeHtml, $$blveGetElmRefs, $$blveInitComponent, $$blveReplaceInnerHtml, $$blveReplaceText, $$blveReplaceAttr, $$blveInsertEmpty, $$blveInsertContent, $$createBlveElement }} from "{}";{}
+        r#"import {{ $$blveAddEvListener, $$blveEscapeHtml, $$blveGetElmRefs, $$blveInitComponent, $$blveReplaceInnerHtml, $$blveReplaceText, $$blveReplaceAttr, $$blveInsertEmpty, $$blveInsertContent, $$createBlveElement, $$blveCreateNonReactive }} from "{}";{}
 
 export default function(args = {{}}) {{
     const {{ $$blveSetComponentElement, $$blveUpdateComponent, $$blveComponentReturn, $$blveAfterMount, $$blveReactive, $$blveRenderIfBlock, $$blveCreateIfBlock }} = new $$blveInitComponent(args{});
@@ -627,6 +626,7 @@ pub fn gen_create_anchor_statements(
 pub fn gen_render_custom_component_statements(
     custom_component_block_info: &Vec<CustomComponentBlockInfo>,
     ctx: &Vec<String>,
+    variable_names: &Vec<String>,
 ) -> Vec<String> {
     let mut render_custom_statements = vec![];
 
@@ -641,7 +641,7 @@ pub fn gen_render_custom_component_statements(
                         "const $$blve{}Comp = {}({}).insert($$blve{}Ref, $$blve{}Anchor);",
                         custom_component_block.custom_component_block_id,
                         custom_component_block.component_name,
-                        custom_component_block.args.to_object(),
+                        custom_component_block.args.to_object(variable_names),
                         custom_component_block.parent_id,
                         custom_component_block.custom_component_block_id
                     ));
@@ -655,7 +655,7 @@ pub fn gen_render_custom_component_statements(
                         "const $$blve{}Comp = {}({}).insert($$blve{}Ref, {});",
                         custom_component_block.custom_component_block_id,
                         custom_component_block.component_name,
-                        custom_component_block.args.to_object(),
+                        custom_component_block.args.to_object(variable_names),
                         custom_component_block.parent_id,
                         anchor_ref_name
                     ));
@@ -666,7 +666,7 @@ pub fn gen_render_custom_component_statements(
                 "const $$blve{}Comp = {}({}).mount($$blve{}Ref);",
                 custom_component_block.custom_component_block_id,
                 custom_component_block.component_name,
-                custom_component_block.args.to_object(),
+                custom_component_block.args.to_object(variable_names),
                 custom_component_block.parent_id
             ));
         }

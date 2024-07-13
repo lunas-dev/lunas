@@ -32,11 +32,13 @@ class valueObj<T> {
   dependencies: { [key: symbol]: [BlveComponent, number] } = {};
   constructor(
     private _v: T,
-    componentObj: BlveComponent,
-    symbolIndex: number,
-    componentSymbol: symbol
+    componentObj?: BlveComponent,
+    componentSymbol?: symbol,
+    symbolIndex: number = 0
   ) {
-    this.dependencies[componentSymbol] = [componentObj, symbolIndex];
+    if (componentSymbol && componentObj) {
+      this.dependencies[componentSymbol] = [componentObj, symbolIndex];
+    }
   }
 
   set v(v: T) {
@@ -173,8 +175,8 @@ export const $$blveInitComponent = function (
     return new valueObj<T>(
       v,
       this,
-      genBitOfVariables().next().value,
-      this.compSymbol
+      this.compSymbol,
+      genBitOfVariables().next().value
     );
   }.bind(this);
 
@@ -300,4 +302,8 @@ export const createDomElementFromBlveElement = function (
   });
   componentElm.innerHTML = blveElement.innerHtml;
   return componentElm;
+};
+
+export const $$blveCreateNonReactive = function <T>(this: BlveComponent, v: T) {
+  return new valueObj<T>(v);
 };
