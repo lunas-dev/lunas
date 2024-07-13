@@ -35,7 +35,7 @@ fn test_case_files() {
                     fs::read_to_string(&output_path).expect("Failed to read output file");
 
                 let b = parse_blve_file(input_content.as_str()).unwrap();
-                let compiled_input = blve_compile_from_block(&b, None, None, None).unwrap().0;
+                let compiled_input = blve_compile_from_block(&b, None).unwrap().0;
 
                 assert_eq!(
                     test_input.as_str(),

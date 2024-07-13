@@ -22,8 +22,6 @@ use crate::{
 
 pub fn generate_js_from_blocks(
     blocks: &DetailedBlock,
-    no_export: Option<bool>,
-    export_name: Option<String>,
     runtime_path: Option<String>,
 ) -> Result<(String, Option<String>), String> {
     let use_component_statements = blocks
@@ -40,10 +38,6 @@ pub fn generate_js_from_blocks(
         .map(|use_component| use_component.component_name.clone())
         .collect::<Vec<String>>();
 
-    let no_export = match no_export.is_none() {
-        true => false,
-        false => no_export.unwrap(),
-    };
     let runtime_path = match runtime_path.is_none() {
         true => "blve/dist/runtime".to_string(),
         false => runtime_path.unwrap(),
@@ -157,25 +151,13 @@ pub fn generate_js_from_blocks(
 
     codes.push("return $$blveComponentReturn;".to_string());
 
-    let full_js_code = gen_full_code(no_export, export_name, runtime_path, imports_string, codes);
+    let full_js_code = gen_full_code(runtime_path, imports_string, codes);
     let css_code = blocks.detailed_language_blocks.css.clone();
 
     Ok((full_js_code, css_code))
 }
 
-fn gen_full_code(
-    no_export: bool,
-    export_name: Option<String>,
-    runtime_path: String,
-    imports_string: String,
-    codes: Vec<String>,
-) -> String {
-    let func_decl = if no_export {
-        format!("const {} = ", export_name.unwrap_or("App".to_string()))
-    } else {
-        "export default ".to_string()
-    };
-
+fn gen_full_code(runtime_path: String, imports_string: String, codes: Vec<String>) -> String {
     // codesにcreate_indentを適用して、\nでjoinする -> code
     let code = codes
         .iter()
@@ -185,11 +167,11 @@ fn gen_full_code(
     format!(
         r#"import {{ $$blveAddEvListener, $$blveEscapeHtml, $$blveGetElmRefs, $$blveInitComponent, $$blveReplaceInnerHtml, $$blveReplaceText, $$blveReplaceAttr, $$blveInsertEmpty, $$blveInsertContent, $$createBlveElement }} from "{}";{}
 
-{}function() {{
+export default function() {{
     const {{ $$blveSetComponentElement, $$blveUpdateComponent, $$blveComponentReturn, $$blveAfterMount, $$blveReactive, $$blveRenderIfBlock, $$blveCreateIfBlock }} = new $$blveInitComponent();
 {}
 }}"#,
-        runtime_path, imports_string, func_decl, code,
+        runtime_path, imports_string, code,
     )
 }
 
