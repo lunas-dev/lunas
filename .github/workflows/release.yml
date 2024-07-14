@@ -17,6 +17,8 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: "18"
+      - name: Install Task
+        uses: arduino/setup-task@v2
       - name: setup rust
         uses: actions-rs/toolchain@v1
         with:
@@ -26,7 +28,7 @@ jobs:
           curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       - name: Build
         run: |
-          make build
+          task build
       - name: Log in to npm
         run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
       - name: Publish npm package
