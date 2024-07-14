@@ -17,9 +17,6 @@ jobs:
         with:
           node-version: "14"
 
-      - name: Install GitHub CLI
-        run: sudo npm install -g @cli/cli
-
       - name: Determine label and apply
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
