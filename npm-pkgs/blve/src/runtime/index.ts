@@ -1,3 +1,12 @@
+export type ComponentDeclaration = (args?: {
+  [key: string]: any;
+}) => BlveModuleExports;
+
+export type BlveModuleExports = {
+  mount: (elm: HTMLElement) => BlveComponentState;
+  insert: (elm: HTMLElement, anchor: HTMLElement | null) => BlveComponentState;
+};
+
 export type BlveComponentState = {
   updatedFlag: boolean;
   valUpdateMap: number;
@@ -157,7 +166,7 @@ export const $$blveInitComponent = function (this: BlveComponentState) {
     $$blveComponentReturn: {
       mount,
       insert,
-    },
+    } as BlveModuleExports,
   };
 };
 
