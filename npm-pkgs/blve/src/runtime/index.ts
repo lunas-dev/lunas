@@ -1,4 +1,4 @@
-export type BlveComponent = {
+export type BlveComponentState = {
   updatedFlag: boolean;
   valUpdateMap: number;
   blkRenderedMap: number;
@@ -27,7 +27,7 @@ type BlveInternalElement = {
   topElmAttr: { [key: string]: string };
 };
 
-export const $$blveInitComponent = function (this: BlveComponent) {
+export const $$blveInitComponent = function (this: BlveComponentState) {
   this.updatedFlag = false;
   this.valUpdateMap = 0;
   this.blkRenderedMap = 0;
@@ -37,7 +37,7 @@ export const $$blveInitComponent = function (this: BlveComponent) {
   this.isMounted = false;
   this.ifBlkRenderers = {};
 
-  const genBitOfVariables = function* (this: BlveComponent) {
+  const genBitOfVariables = function* (this: BlveComponentState) {
     while (true) {
       if (this.currentVarBit === 0) {
         this.currentVarBit = 1;
@@ -49,7 +49,7 @@ export const $$blveInitComponent = function (this: BlveComponent) {
     }
   }.bind(this);
 
-  const genBitOfIfBlks = function* (this: BlveComponent) {
+  const genBitOfIfBlks = function* (this: BlveComponentState) {
     while (true) {
       if (this.currentIfBlkBit === 0) {
         this.currentIfBlkBit = 1;
@@ -62,7 +62,7 @@ export const $$blveInitComponent = function (this: BlveComponent) {
   }.bind(this);
 
   const componentElementSetter = function (
-    this: BlveComponent,
+    this: BlveComponentState,
     innerHtml: string,
     topElmTag: string,
     topElmAttr: { [key: string]: string } = {}
@@ -74,14 +74,14 @@ export const $$blveInitComponent = function (this: BlveComponent) {
     };
   }.bind(this);
 
-  const setAfterMount = function (this: BlveComponent, afterMount: () => void) {
+  const setAfterMount = function (this: BlveComponentState, afterMount: () => void) {
     this.__blve_after_mount = afterMount;
   }.bind(this);
 
   const mount = function (
-    this: BlveComponent,
+    this: BlveComponentState,
     elm: HTMLElement
-  ): BlveComponent {
+  ): BlveComponentState {
     if (this.isMounted) throw new Error("Component is already mounted");
     elm.innerHTML = `<${this.internalElement.topElmTag} ${Object.keys(
       this.internalElement.topElmAttr
@@ -96,10 +96,10 @@ export const $$blveInitComponent = function (this: BlveComponent) {
   }.bind(this);
 
   const insert = function (
-    this: BlveComponent,
+    this: BlveComponentState,
     elm: HTMLElement,
     anchor: HTMLElement | null
-  ): BlveComponent {
+  ): BlveComponentState {
     if (this.isMounted) throw new Error("Component is already mounted");
     const componentElm = createDomElementFromBlveElement(this.internalElement);
     elm.insertBefore(componentElm, anchor);
@@ -109,7 +109,7 @@ export const $$blveInitComponent = function (this: BlveComponent) {
   }.bind(this);
 
   const updateComponent = function (
-    this: BlveComponent,
+    this: BlveComponentState,
     updateFunc: () => void
   ) {
     this.__blve_update = (() => {
@@ -121,12 +121,12 @@ export const $$blveInitComponent = function (this: BlveComponent) {
     }).bind(this);
   }.bind(this);
 
-  const createReactive = function <T>(this: BlveComponent, v: T) {
+  const createReactive = function <T>(this: BlveComponentState, v: T) {
     return new valueObj<T>(v, this, genBitOfVariables().next().value);
   }.bind(this);
 
   const createIfBlock = function (
-    this: BlveComponent,
+    this: BlveComponentState,
     name: string,
     blveElement: () => BlveInternalElement,
     getParentAndRefElement: () => [HTMLElement, HTMLElement | null],
@@ -142,7 +142,7 @@ export const $$blveInitComponent = function (this: BlveComponent) {
     }).bind(this);
   }.bind(this);
 
-  const renderIfBlock = function (this: BlveComponent, name: string) {
+  const renderIfBlock = function (this: BlveComponentState, name: string) {
     if (!this.ifBlkRenderers[name]) return;
     this.ifBlkRenderers[name]();
   }.bind(this);
@@ -164,7 +164,7 @@ export const $$blveInitComponent = function (this: BlveComponent) {
 class valueObj<T> {
   constructor(
     private _v: T,
-    private componentObj: BlveComponent,
+    private componentObj: BlveComponentState,
     private symbolIndex: number
   ) {}
 
