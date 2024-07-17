@@ -83,7 +83,10 @@ export const $$blveInitComponent = function (this: BlveComponentState) {
     };
   }.bind(this);
 
-  const setAfterMount = function (this: BlveComponentState, afterMount: () => void) {
+  const setAfterMount = function (
+    this: BlveComponentState,
+    afterMount: () => void
+  ) {
     this.__blve_after_mount = afterMount;
   }.bind(this);
 

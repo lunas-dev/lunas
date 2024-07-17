@@ -143,6 +143,7 @@ pub struct CustomComponentBlockInfo {
     pub ctx: Vec<String>,
     pub custom_component_block_id: String,
     pub element_location: Vec<usize>,
+    pub is_routing_component: bool,
 }
 
 #[derive(Debug, Clone)]

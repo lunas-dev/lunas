@@ -1,6 +1,7 @@
 use nanoid::nanoid;
 
 use crate::{
+    consts::ROUTER_COMPONENTS,
     orig_html_struct::{
         html_manipulation::{
             HtmlManipulation, HtmlManipulator, RemoveChildForCustomComponent,
@@ -177,6 +178,7 @@ pub fn check_html_elms(
             // When the tag_name corresponds to the component_names
             if component_names.contains(&element.tag_name) {
                 html_manipulators.push(HtmlManipulator {
+                    // TODO: add error message for unwrap below
                     target_uuid: parent_uuid.unwrap().clone(),
                     manipulations: HtmlManipulation::RemoveChildForCustomComponent(
                         RemoveChildForCustomComponent {
@@ -358,6 +360,9 @@ pub fn check_html_elms(
                                 ctx: remove_statement.ctx.clone(),
                                 custom_component_block_id: UUID_GENERATOR.lock().unwrap().gen(),
                                 element_location: remove_statement.elm_loc.clone(),
+                                is_routing_component: ROUTER_COMPONENTS
+                                    .into_iter()
+                                    .any(|x| x == remove_statement.component_name),
                             });
                         }
                         HtmlManipulation::SetIdForReactiveContent(set_id) => {

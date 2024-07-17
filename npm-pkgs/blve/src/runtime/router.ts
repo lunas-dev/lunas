@@ -1,7 +1,6 @@
 import { BlveModuleExports, ComponentDeclaration } from ".";
-import { routes as autoRoutes } from "blve-auto-routing-plugin";
 
-export type ComponentLoader = () => Promise<ComponentDeclaration>;
+export type ComponentLoader = () => Promise<{ default: ComponentDeclaration }>;
 
 export type Route = {
   path: string;
@@ -15,6 +14,7 @@ export class Router {
   renderingTarget!: {
     parent: HTMLElement;
     anchor: HTMLElement | null;
+    haveSiblingElm: boolean;
   };
 
   constructor() {
@@ -40,7 +40,7 @@ export class Router {
   async handleRoute(path: string) {
     const route = this.routes.find((route) => route.path === path);
     if (route) {
-      const component = await route.component();
+      const component = (await route.component()).default;
       this.renderComponent(component);
     } else {
       this.notFound();
@@ -57,24 +57,26 @@ export class Router {
     //   this.currentComponent.__blve_destroy();
     // }
     this.currentComponent = component();
-    this.currentComponent.mount(document.getElementById("app")!);
+    if (this.renderingTarget.haveSiblingElm) {
+      this.currentComponent.insert(
+        this.renderingTarget.parent,
+        this.renderingTarget.anchor
+      );
+    } else {
+      this.currentComponent.mount(this.renderingTarget.parent);
+    }
   }
 
-  initialize(parent: HTMLElement, anchor: HTMLElement | null) {
-    this.renderingTarget = { parent, anchor };
-    this.handleRoute(window.location.pathname);
-  }
-
-  // DO NOT EXECUTE THIS FUNCTION IN NON-VITE ENVIRONMENTS
-  async initializeWithAutoRoutes(
+  initialize(
+    routes: Route[] = [],
     parent: HTMLElement,
-    anchor: HTMLElement | null
+    anchor: HTMLElement | null,
+    haveSiblingElm: boolean
   ) {
-    (autoRoutes as Route[]).forEach((route) => {
-      this.addRoute(route.path, route.component);
-    });
-    this.initialize(parent, anchor);
+    this.routes = routes;
+    this.renderingTarget = { parent, anchor, haveSiblingElm };
+    this.handleRoute(window.location.pathname);
   }
 }
 
-export const router = new Router();
+export const $$blveRouter = new Router();
