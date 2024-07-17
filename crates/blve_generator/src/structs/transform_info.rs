@@ -4,6 +4,7 @@ use crate::{orig_html_struct::structs::Node, transformers::utils::append_v_to_va
 pub enum TransformInfo {
     AddStringToPosition(AddStringToPosition),
     RemoveStatement(RemoveStatement),
+    ReplaceText(ReplaceText),
 }
 
 #[derive(Debug, Clone)]
@@ -16,6 +17,13 @@ pub struct AddStringToPosition {
 pub struct RemoveStatement {
     pub start_position: u32,
     pub end_position: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReplaceText {
+    pub start_position: u32,
+    pub end_position: u32,
+    pub string: String,
 }
 
 #[derive(Debug)]
@@ -54,11 +62,15 @@ pub struct EventBindingStatement {
     pub arg: String,
 }
 
-impl ToString for EventTarget {
-    fn to_string(&self) -> String {
+impl EventTarget {
+    pub fn to_string(&self, variables: &Vec<String>) -> String {
         match self {
             EventTarget::RefToFunction(function_name) => function_name.clone(),
-            EventTarget::Statement(statement) => format!("()=>{}", statement),
+            EventTarget::Statement(statement) => {
+                // cosider using returned variables
+                let (statement, _) = append_v_to_vars_in_html(statement.as_str(), variables);
+                format!("()=>{}", statement)
+            }
             EventTarget::EventBindingStatement(statement) => {
                 format!("({})=>{}", statement.arg, statement.statement)
             }

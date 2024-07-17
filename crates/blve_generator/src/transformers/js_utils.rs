@@ -4,7 +4,7 @@ use blve_parser::DetailedBlock;
 use serde_json::{Map, Value};
 
 use crate::structs::transform_info::{
-    AddStringToPosition, RemoveStatement, TransformInfo, VariableNameAndAssignedNumber,
+    AddStringToPosition, RemoveStatement, ReplaceText, TransformInfo, VariableNameAndAssignedNumber,
 };
 
 use super::utils::add_or_remove_strings_to_script;
@@ -29,7 +29,7 @@ pub fn analyze_js(
             &js_block.ast,
             &js_block.raw,
             &variable_names,
-            &imports,
+            Some(&imports),
             None,
         );
         positions.extend(position_result);
@@ -125,7 +125,8 @@ pub fn search_json(
     json: &Value,
     raw_js: &String,
     variables: &Vec<String>,
-    imports: &Vec<String>,
+    // FIXME: imports are unused
+    imports: Option<&Vec<String>>,
     parent: Option<&Map<String, Value>>,
 ) -> (vec::Vec<TransformInfo>, vec::Vec<String>) {
     if let Value::Object(obj) = json {
@@ -172,17 +173,55 @@ pub fn search_json(
                     .take(trim_end as usize - obj["span"]["start"].as_u64().unwrap() as usize)
                     .collect()],
             );
-        } else {
-            let mut trans_tmp = vec![];
-            let mut import_tmp = vec![];
-            for (_key, value) in obj {
-                let (trans_res, import_res) =
-                    search_json(value, raw_js, variables, imports, Some(&obj));
-                trans_tmp.extend(trans_res);
-                import_tmp.extend(import_res);
+        } else if obj.contains_key("type")
+            && obj["type"] == Value::String("MemberExpression".into())
+        {
+            if let Some(object) = obj.get("object") {
+                if let Some(property) = obj.get("property") {
+                    let is_target_property = if let Value::Object(property) = property {
+                        if let Some(Value::String(property_value)) = property.get("value") {
+                            property_value == "router"
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
+                    let is_target_object = if let Value::Object(object) = object {
+                        if let Some(Value::String(object_value)) = object.get("value") {
+                            object_value == "Blve"
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
+                    if is_target_object && is_target_property {
+                        if let Some(Value::Object(span)) = obj.get("span") {
+                            let start = span["start"].as_u64().unwrap() as u32;
+                            let end = span["end"].as_u64().unwrap() as u32;
+                            return (
+                                vec![TransformInfo::ReplaceText(ReplaceText {
+                                    start_position: start - 1,
+                                    end_position: end - 1,
+                                    string: "$$blveRouter".to_string(),
+                                })],
+                                vec![],
+                            );
+                        }
+                    }
+                }
             }
-            return (trans_tmp, import_tmp);
         }
+        let mut trans_tmp = vec![];
+        let mut import_tmp = vec![];
+        for (_key, value) in obj {
+            let (trans_res, import_res) =
+                search_json(value, raw_js, variables, imports, Some(&obj));
+            trans_tmp.extend(trans_res);
+            import_tmp.extend(import_res);
+        }
+        return (trans_tmp, import_tmp);
     } else if let Value::Array(arr) = json {
         let mut trans_tmp = vec![];
         let mut import_tmp = vec![];
