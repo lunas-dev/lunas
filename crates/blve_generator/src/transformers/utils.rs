@@ -1,9 +1,6 @@
 use std::{env, sync::Mutex};
-
 use rand::{rngs::StdRng, SeedableRng};
-use serde_json::Value;
-
-use crate::structs::transform_info::{AddStringToPosition, TransformInfo};
+use crate::structs::transform_info::TransformInfo;
 
 // TODO: 綺麗な実装にする
 pub fn add_or_remove_strings_to_script(
