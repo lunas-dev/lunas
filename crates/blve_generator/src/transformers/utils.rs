@@ -1,6 +1,6 @@
-use std::{env, sync::Mutex};
-use rand::{rngs::StdRng, SeedableRng};
 use crate::structs::transform_info::TransformInfo;
+use rand::{rngs::StdRng, SeedableRng};
+use std::{env, sync::Mutex};
 
 // TODO: 綺麗な実装にする
 pub fn add_or_remove_strings_to_script(
@@ -102,7 +102,7 @@ pub fn append_v_to_vars_in_html(input: &str, variables: &Vec<String>) -> (String
 
     let parsed_json = serde_json::to_value(&parsed).unwrap();
 
-    let (positions, depending_vars) =
+    let (positions, _, depending_vars) =
         search_json(&parsed_json, &input.to_string(), &variables, None, None);
 
     let modified_string = add_or_remove_strings_to_script(positions, &input.to_string());

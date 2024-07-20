@@ -25,7 +25,7 @@ pub fn analyze_js(
         // add all variable declarations to positions to add custom variable declaration function
         positions.extend(str_positions);
         let variable_names = variables.iter().map(|v| v.name.clone()).collect();
-        let (position_result, import_result) = search_json(
+        let (position_result, import_result, _) = search_json(
             &js_block.ast,
             &js_block.raw,
             &variable_names,
@@ -121,6 +121,7 @@ fn power_of_two_generator() -> impl FnMut() -> u32 {
     }
 }
 
+// Use mutable references for the arguments instead of returning them
 pub fn search_json(
     json: &Value,
     raw_js: &String,
@@ -128,7 +129,7 @@ pub fn search_json(
     // FIXME: imports are unused
     imports: Option<&Vec<String>>,
     parent: Option<&Map<String, Value>>,
-) -> (vec::Vec<TransformInfo>, vec::Vec<String>) {
+) -> (vec::Vec<TransformInfo>, vec::Vec<String>, vec::Vec<String>) {
     if let Value::Object(obj) = json {
         if obj.contains_key("type") && obj["type"] == Value::String("Identifier".into()) {
             if parent.is_some()
@@ -145,6 +146,7 @@ pub fn search_json(
                                         string: ".v".to_string(),
                                     })],
                                     vec![],
+                                    vec![variable_name.clone()],
                                 );
                             }
                         }
@@ -152,7 +154,7 @@ pub fn search_json(
                 }
             }
 
-            return (vec![], vec![]);
+            return (vec![], vec![], vec![]);
         } else if obj.contains_key("type")
             && obj["type"] == Value::String("ImportDeclaration".into())
         {
@@ -172,6 +174,7 @@ pub fn search_json(
                     .skip(obj["span"]["start"].as_u64().unwrap() as usize - 1)
                     .take(trim_end as usize - obj["span"]["start"].as_u64().unwrap() as usize)
                     .collect()],
+                vec![],
             );
         } else if obj.contains_key("type")
             && obj["type"] == Value::String("MemberExpression".into())
@@ -207,6 +210,7 @@ pub fn search_json(
                                     string: "$$blveRouter".to_string(),
                                 })],
                                 vec![],
+                                vec![],
                             );
                         }
                     }
@@ -215,24 +219,28 @@ pub fn search_json(
         }
         let mut trans_tmp = vec![];
         let mut import_tmp = vec![];
+        let mut dep_vars_tmp = vec![];
         for (_key, value) in obj {
-            let (trans_res, import_res) =
+            let (trans_res, import_res, dep_vars) =
                 search_json(value, raw_js, variables, imports, Some(&obj));
             trans_tmp.extend(trans_res);
             import_tmp.extend(import_res);
+            dep_vars_tmp.extend(dep_vars);
         }
-        return (trans_tmp, import_tmp);
+        return (trans_tmp, import_tmp, dep_vars_tmp);
     } else if let Value::Array(arr) = json {
         let mut trans_tmp = vec![];
         let mut import_tmp = vec![];
+        let mut dep_vars_tmp = vec![];
         for child_value in arr {
             // TODO: Pass parent to search_json
-            let (trans_res, import_res) =
+            let (trans_res, import_res, dep_vars) =
                 search_json(child_value, raw_js, variables, imports, None);
             trans_tmp.extend(trans_res);
             import_tmp.extend(import_res);
+            dep_vars_tmp.extend(dep_vars);
         }
-        return (trans_tmp, import_tmp);
+        return (trans_tmp, import_tmp, dep_vars_tmp);
     }
-    return (vec![], vec![]);
+    return (vec![], vec![], vec![]);
 }
