@@ -12,7 +12,7 @@ tasks:
       - cd $PLAYGROUND_PATH&&pwd&&npm run dev
   dev-server:
     cmds:
-      - cargo watch -x run
+      - cargo watch -x run --features playground
     dir: crates/blve_dev_server
   build:
     cmds:

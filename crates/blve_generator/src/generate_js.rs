@@ -43,6 +43,11 @@ pub fn generate_js_from_blocks(
 
     let mut imports = vec![];
 
+    #[cfg(not(feature = "playground"))]
+    {
+        imports.push("import { $$blveRouter } from \"blve/dist/runtime/router\";".to_string());
+    }
+
     let using_auto_routing = blocks
         .detailed_meta_data
         .iter()
@@ -52,7 +57,6 @@ pub fn generate_js_from_blocks(
         });
 
     if using_auto_routing {
-        imports.push("import { $$blveRouter } from \"blve/dist/runtime/router\";".to_string());
         imports.push(
             "import { routes as $$blveGeneratedRoutes } from \"virtual:generated-routes\";"
                 .to_string(),
