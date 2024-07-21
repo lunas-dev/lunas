@@ -147,7 +147,7 @@ pub fn generate_js_from_blocks(
     after_mount_code_array.extend(if_block_elm_decl);
     let create_anchor_statements = gen_create_anchor_statements(&text_node_renderer_group, &vec![]);
     after_mount_code_array.extend(create_anchor_statements);
-    let event_listener_codes = create_event_listener(&action_and_target, &vec![], &variable_names);
+    let event_listener_codes = create_event_listener(&action_and_target, &vec![]);
     after_mount_code_array.extend(event_listener_codes);
     let render_if = gen_render_if_blk_func(
         &if_blocks_info,
@@ -155,7 +155,6 @@ pub fn generate_js_from_blocks(
         &action_and_target,
         &text_node_renderer_group,
         &custom_component_blocks_info,
-        &variable_names,
     );
     after_mount_code_array.extend(render_if);
     let render_component =
@@ -268,7 +267,6 @@ pub fn gen_ref_getter_from_needed_ids(
 pub fn create_event_listener(
     actions_and_targets: &Vec<ActionAndTarget>,
     current_ctx: &Vec<String>,
-    variables: &Vec<String>,
 ) -> Vec<String> {
     let mut result = vec![];
     for action_and_target in actions_and_targets {
@@ -279,7 +277,7 @@ pub fn create_event_listener(
             "$$blveAddEvListener($$blve{}Ref, \"{}\", {});",
             action_and_target.target,
             action_and_target.action_name,
-            action_and_target.action.to_string(variables)
+            action_and_target.action.to_string()
         ));
     }
     result

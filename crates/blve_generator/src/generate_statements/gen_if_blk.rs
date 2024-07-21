@@ -19,7 +19,6 @@ pub fn gen_render_if_blk_func(
     actions_and_targets: &Vec<ActionAndTarget>,
     text_node_renderer: &TextNodeRendererGroup,
     custom_component_blocks_info: &Vec<CustomComponentBlockInfo>,
-    variable_names: &Vec<String>,
 ) -> Vec<String> {
     let mut render_if = vec![];
 
@@ -41,8 +40,7 @@ pub fn gen_render_if_blk_func(
         );
         rendering_statement.push(ref_getter_str.as_str());
 
-        let ev_listener_code =
-            create_event_listener(actions_and_targets, &if_block.ctx_under_if, variable_names);
+        let ev_listener_code = create_event_listener(actions_and_targets, &if_block.ctx_under_if);
         if ev_listener_code.len() != 0 {
             rendering_statement.extend(ev_listener_code.iter().map(|x| x.as_str()));
         }

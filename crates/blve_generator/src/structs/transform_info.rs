@@ -62,15 +62,12 @@ pub struct EventBindingStatement {
     pub arg: String,
 }
 
-impl EventTarget {
-    pub fn to_string(&self, variables: &Vec<String>) -> String {
+impl ToString for EventTarget {
+    fn to_string(&self) -> String {
         match self {
             EventTarget::RefToFunction(function_name) => function_name.clone(),
-            EventTarget::Statement(statement) => {
-                // cosider using returned variables
-                let (statement, _) = append_v_to_vars_in_html(statement.as_str(), variables);
-                format!("()=>{}", statement)
-            }
+            EventTarget::Statement(statement) => format!("()=>{}", statement),
+            // TODO: (P3) Check if "EventBindingStatement" is used
             EventTarget::EventBindingStatement(statement) => {
                 format!("({})=>{}", statement.arg, statement.statement)
             }
@@ -80,10 +77,8 @@ impl EventTarget {
 
 impl EventTarget {
     pub fn new(content: String, variables: &Vec<String>) -> Self {
-        // FIXME: This is a hacky way to check if the content is a statement or a function
-        if content.trim().ends_with(")") {
-            EventTarget::Statement(content)
-        } else if word_is_one_word(content.as_str()) {
+        // FIXME: (P1) This is a hacky way to check if the content is a statement or a function
+        if word_is_one_word(content.as_str()) {
             EventTarget::RefToFunction(content)
         } else {
             EventTarget::Statement(append_v_to_vars_in_html(content.as_str(), &variables).0)
