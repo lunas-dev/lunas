@@ -5,6 +5,7 @@ export type ComponentDeclaration = (args?: {
 export type BlveModuleExports = {
   mount: (elm: HTMLElement) => BlveComponentState;
   insert: (elm: HTMLElement, anchor: HTMLElement | null) => BlveComponentState;
+  __unmount: () => void;
 };
 
 export type BlveComponentState = {
@@ -17,6 +18,7 @@ export type BlveComponentState = {
   currentIfBlkBit: number;
   ifBlkRenderers: { [key: string]: () => void };
   isMounted: boolean;
+  componentElm: HTMLElement;
   // componentElmentSetter: (innerHtml: string, topElmTag: string,topElmAttr: {[key: string]: string}) => void
   __blve_update: () => void;
   __blve_after_mount: () => void;
@@ -102,6 +104,7 @@ export const $$blveInitComponent = function (this: BlveComponentState) {
       .join(" ")}>${this.internalElement.innerHtml}</${
       this.internalElement.topElmTag
     }>`;
+    this.componentElm = elm.firstElementChild as HTMLElement;
     this.__blve_after_mount();
     this.isMounted = true;
     return this;
@@ -113,11 +116,17 @@ export const $$blveInitComponent = function (this: BlveComponentState) {
     anchor: HTMLElement | null
   ): BlveComponentState {
     if (this.isMounted) throw new Error("Component is already mounted");
-    const componentElm = createDomElementFromBlveElement(this.internalElement);
-    elm.insertBefore(componentElm, anchor);
+    this.componentElm = createDomElementFromBlveElement(this.internalElement);
+    elm.insertBefore(this.componentElm, anchor);
     this.__blve_after_mount();
     this.isMounted = true;
     return this;
+  }.bind(this);
+
+  const __unmount = function (this: BlveComponentState) {
+    if (!this.isMounted) throw new Error("Component is not mounted");
+    this.componentElm!.remove();
+    this.isMounted = false;
   }.bind(this);
 
   const updateComponent = function (
@@ -169,6 +178,7 @@ export const $$blveInitComponent = function (this: BlveComponentState) {
     $$blveComponentReturn: {
       mount,
       insert,
+      __unmount,
     } as BlveModuleExports,
   };
 };

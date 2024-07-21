@@ -52,10 +52,9 @@ export class Router {
   }
 
   renderComponent(component: ComponentDeclaration) {
-    // TODO: Execute destroy function of the current component
-    // if (this.currentComponent && this.currentComponent.__blve_destroy) {
-    //   this.currentComponent.__blve_destroy();
-    // }
+    if (this.currentComponent) {
+      this.currentComponent.__unmount();
+    }
     this.currentComponent = component();
     if (this.renderingTarget.haveSiblingElm) {
       this.currentComponent.insert(
