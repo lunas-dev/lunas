@@ -1,9 +1,7 @@
-use std::{env, sync::Mutex};
-
+use crate::structs::transform_info::{AddStringToPosition, TransformInfo};
 use rand::{rngs::StdRng, SeedableRng};
 use serde_json::Value;
-
-use crate::structs::transform_info::{AddStringToPosition, TransformInfo};
+use std::{env, sync::Mutex};
 
 // TODO: 綺麗な実装にする
 pub fn add_or_remove_strings_to_script(
@@ -15,10 +13,12 @@ pub fn add_or_remove_strings_to_script(
         let a = match a {
             TransformInfo::AddStringToPosition(a) => a.position,
             TransformInfo::RemoveStatement(a) => a.start_position,
+            TransformInfo::ReplaceText(a) => a.start_position,
         };
         let b = match b {
             TransformInfo::AddStringToPosition(b) => b.position,
             TransformInfo::RemoveStatement(b) => b.start_position,
+            TransformInfo::ReplaceText(b) => b.start_position,
         };
         a.cmp(&b)
     });
@@ -35,6 +35,11 @@ pub fn add_or_remove_strings_to_script(
                 result.push_str(&script[last_position..remove.start_position as usize]);
                 last_position = remove.end_position as usize;
             }
+            TransformInfo::ReplaceText(replace) => {
+                result.push_str(&script[last_position..replace.start_position as usize]);
+                result.push_str(&replace.string);
+                last_position = replace.end_position as usize;
+            }
         }
     }
     result.push_str(&script[last_position..]);
@@ -43,7 +48,7 @@ pub fn add_or_remove_strings_to_script(
 
 use rand::seq::SliceRandom;
 
-use super::utils_swc::parse_with_swc;
+use super::{js_utils::search_json, utils_swc::parse_with_swc};
 
 lazy_static! {
     pub static ref UUID_GENERATOR: Mutex<UuidGenerator> = Mutex::new(UuidGenerator::new());
@@ -98,7 +103,8 @@ pub fn append_v_to_vars_in_html(input: &str, variables: &Vec<String>) -> (String
 
     let parsed_json = serde_json::to_value(&parsed).unwrap();
 
-    let (positions, depending_vars) = search_json(&parsed_json, &variables);
+    let (positions, _, depending_vars) =
+        search_json(&parsed_json, &input.to_string(), &variables, None, None);
 
     let modified_string = add_or_remove_strings_to_script(positions, &input.to_string());
 
@@ -111,45 +117,6 @@ pub fn convert_non_reactive_to_obj(input: &str, variables: &Vec<String>) -> Stri
     let positions = find_non_reactives(&parsed_json, &variables);
     let modified_string = add_or_remove_strings_to_script(positions, &input.to_string());
     modified_string
-}
-
-// TODO: Name this function more specifically
-pub fn search_json(json: &Value, variables: &Vec<String>) -> (Vec<TransformInfo>, Vec<String>) {
-    let mut positions = vec![];
-    let mut depending_vars = vec![];
-
-    if let Value::Object(obj) = json {
-        if obj.contains_key("type") && obj["type"] == Value::String("Identifier".into()) {
-            if let Some(Value::String(variable_name)) = obj.get("value") {
-                if variables.iter().any(|e| e == variable_name) {
-                    if let Some(Value::Object(span)) = obj.get("span") {
-                        if let Some(Value::Number(end)) = span.get("end") {
-                            positions.push(TransformInfo::AddStringToPosition(
-                                AddStringToPosition {
-                                    position: (end.as_u64().unwrap() - 1) as u32,
-                                    string: ".v".to_string(),
-                                },
-                            ));
-                            depending_vars.push(variable_name.to_string());
-                        }
-                    }
-                }
-            }
-        } else {
-            for (_key, value) in obj {
-                let (result_positions, result_vars) = search_json(value, variables);
-                positions.extend(result_positions);
-                depending_vars.extend(result_vars);
-            }
-        }
-    } else if let Value::Array(arr) = json {
-        for value in arr {
-            let (result_positions, result_vars) = search_json(value, variables);
-            positions.extend(result_positions);
-            depending_vars.extend(result_vars);
-        }
-    }
-    (positions, depending_vars)
 }
 
 pub fn find_non_reactives(json: &Value, variables: &Vec<String>) -> Vec<TransformInfo> {

@@ -1,3 +1,4 @@
+mod consts;
 mod generate_js;
 mod generate_statements;
 mod orig_html_struct;

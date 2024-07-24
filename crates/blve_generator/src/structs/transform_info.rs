@@ -9,6 +9,7 @@ use crate::{
 pub enum TransformInfo {
     AddStringToPosition(AddStringToPosition),
     RemoveStatement(RemoveStatement),
+    ReplaceText(ReplaceText),
 }
 
 #[derive(Debug, Clone)]
@@ -21,6 +22,13 @@ pub struct AddStringToPosition {
 pub struct RemoveStatement {
     pub start_position: u32,
     pub end_position: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReplaceText {
+    pub start_position: u32,
+    pub end_position: u32,
+    pub string: String,
 }
 
 #[derive(Debug)]
@@ -64,6 +72,7 @@ impl ToString for EventTarget {
         match self {
             EventTarget::RefToFunction(function_name) => function_name.clone(),
             EventTarget::Statement(statement) => format!("()=>{}", statement),
+            // TODO: (P3) Check if "EventBindingStatement" is used
             EventTarget::EventBindingStatement(statement) => {
                 format!("({})=>{}", statement.arg, statement.statement)
             }
@@ -73,10 +82,8 @@ impl ToString for EventTarget {
 
 impl EventTarget {
     pub fn new(content: String, variables: &Vec<String>) -> Self {
-        // FIXME: This is a hacky way to check if the content is a statement or a function
-        if content.trim().ends_with(")") {
-            EventTarget::Statement(content)
-        } else if word_is_one_word(content.as_str()) {
+        // FIXME: (P1) This is a hacky way to check if the content is a statement or a function
+        if word_is_one_word(content.as_str()) {
             EventTarget::RefToFunction(content)
         } else {
             EventTarget::Statement(append_v_to_vars_in_html(content.as_str(), &variables).0)
@@ -148,6 +155,7 @@ pub struct CustomComponentBlockInfo {
     pub ctx: Vec<String>,
     pub custom_component_block_id: String,
     pub element_location: Vec<usize>,
+    pub is_routing_component: bool,
     pub args: ComponentArgs,
 }
 

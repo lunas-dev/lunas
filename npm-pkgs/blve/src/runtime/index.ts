@@ -1,4 +1,14 @@
-export type BlveComponent = {
+export type ComponentDeclaration = (args?: {
+  [key: string]: any;
+}) => BlveModuleExports;
+
+export type BlveModuleExports = {
+  mount: (elm: HTMLElement) => BlveComponentState;
+  insert: (elm: HTMLElement, anchor: HTMLElement | null) => BlveComponentState;
+  __unmount: () => void;
+};
+
+export type BlveComponentState = {
   updatedFlag: boolean;
   valUpdateMap: number;
   blkRenderedMap: number;
@@ -8,6 +18,7 @@ export type BlveComponent = {
   currentIfBlkBit: number;
   ifBlkRenderers: { [key: string]: () => void };
   isMounted: boolean;
+  componentElm: HTMLElement;
   compSymbol: symbol;
   // componentElmentSetter: (innerHtml: string, topElmTag: string,topElmAttr: {[key: string]: string}) => void
   __blve_update: () => void;
@@ -29,10 +40,10 @@ type BlveInternalElement = {
 };
 
 class valueObj<T> {
-  dependencies: { [key: symbol]: [BlveComponent, number] } = {};
+  dependencies: { [key: symbol]: [BlveComponentState, number] } = {};
   constructor(
     private _v: T,
-    componentObj?: BlveComponent,
+    componentObj?: BlveComponentState,
     componentSymbol?: symbol,
     symbolIndex: number = 0
   ) {
@@ -58,13 +69,13 @@ class valueObj<T> {
     return this._v;
   }
 
-  addDependency(componentObj: BlveComponent, symbolIndex: number) {
+  addDependency(componentObj: BlveComponentState, symbolIndex: number) {
     this.dependencies[componentObj.compSymbol] = [componentObj, symbolIndex];
   }
 }
 
 export const $$blveInitComponent = function (
-  this: BlveComponent,
+  this: BlveComponentState,
   args: { [key: string]: any } = {},
   inputs: string[] = []
 ) {
@@ -78,7 +89,7 @@ export const $$blveInitComponent = function (
   this.ifBlkRenderers = {};
   this.compSymbol = Symbol();
 
-  const genBitOfVariables = function* (this: BlveComponent) {
+  const genBitOfVariables = function* (this: BlveComponentState) {
     while (true) {
       if (this.currentVarBit === 0) {
         this.currentVarBit = 1;
@@ -99,7 +110,7 @@ export const $$blveInitComponent = function (
     }
   }
 
-  const genBitOfIfBlks = function* (this: BlveComponent) {
+  const genBitOfIfBlks = function* (this: BlveComponentState) {
     while (true) {
       if (this.currentIfBlkBit === 0) {
         this.currentIfBlkBit = 1;
@@ -112,7 +123,7 @@ export const $$blveInitComponent = function (
   }.bind(this);
 
   const componentElementSetter = function (
-    this: BlveComponent,
+    this: BlveComponentState,
     innerHtml: string,
     topElmTag: string,
     topElmAttr: { [key: string]: string } = {}
@@ -124,14 +135,17 @@ export const $$blveInitComponent = function (
     };
   }.bind(this);
 
-  const setAfterMount = function (this: BlveComponent, afterMount: () => void) {
+  const setAfterMount = function (
+    this: BlveComponentState,
+    afterMount: () => void
+  ) {
     this.__blve_after_mount = afterMount;
   }.bind(this);
 
   const mount = function (
-    this: BlveComponent,
+    this: BlveComponentState,
     elm: HTMLElement
-  ): BlveComponent {
+  ): BlveComponentState {
     if (this.isMounted) throw new Error("Component is already mounted");
     elm.innerHTML = `<${this.internalElement.topElmTag} ${Object.keys(
       this.internalElement.topElmAttr
@@ -140,26 +154,33 @@ export const $$blveInitComponent = function (
       .join(" ")}>${this.internalElement.innerHtml}</${
       this.internalElement.topElmTag
     }>`;
+    this.componentElm = elm.firstElementChild as HTMLElement;
     this.__blve_after_mount();
     this.isMounted = true;
     return this;
   }.bind(this);
 
   const insert = function (
-    this: BlveComponent,
+    this: BlveComponentState,
     elm: HTMLElement,
     anchor: HTMLElement | null
-  ): BlveComponent {
+  ): BlveComponentState {
     if (this.isMounted) throw new Error("Component is already mounted");
-    const componentElm = createDomElementFromBlveElement(this.internalElement);
-    elm.insertBefore(componentElm, anchor);
+    this.componentElm = createDomElementFromBlveElement(this.internalElement);
+    elm.insertBefore(this.componentElm, anchor);
     this.__blve_after_mount();
     this.isMounted = true;
     return this;
   }.bind(this);
 
+  const __unmount = function (this: BlveComponentState) {
+    if (!this.isMounted) throw new Error("Component is not mounted");
+    this.componentElm!.remove();
+    this.isMounted = false;
+  }.bind(this);
+
   const updateComponent = function (
-    this: BlveComponent,
+    this: BlveComponentState,
     updateFunc: () => void
   ) {
     this.__blve_update = (() => {
@@ -171,7 +192,7 @@ export const $$blveInitComponent = function (
     }).bind(this);
   }.bind(this);
 
-  const createReactive = function <T>(this: BlveComponent, v: T) {
+  const createReactive = function <T>(this: BlveComponentState, v: T) {
     return new valueObj<T>(
       v,
       this,
@@ -181,7 +202,7 @@ export const $$blveInitComponent = function (
   }.bind(this);
 
   const createIfBlock = function (
-    this: BlveComponent,
+    this: BlveComponentState,
     name: string,
     blveElement: () => BlveInternalElement,
     getParentAndRefElement: () => [HTMLElement, HTMLElement | null],
@@ -197,7 +218,7 @@ export const $$blveInitComponent = function (
     }).bind(this);
   }.bind(this);
 
-  const renderIfBlock = function (this: BlveComponent, name: string) {
+  const renderIfBlock = function (this: BlveComponentState, name: string) {
     if (!this.ifBlkRenderers[name]) return;
     this.ifBlkRenderers[name]();
   }.bind(this);
@@ -212,7 +233,8 @@ export const $$blveInitComponent = function (
     $$blveComponentReturn: {
       mount,
       insert,
-    },
+      __unmount,
+    } as BlveModuleExports,
   };
 };
 
@@ -304,6 +326,6 @@ export const createDomElementFromBlveElement = function (
   return componentElm;
 };
 
-export const $$blveCreateNonReactive = function <T>(this: BlveComponent, v: T) {
+export const $$blveCreateNonReactive = function <T>(this: BlveComponentState, v: T) {
   return new valueObj<T>(v);
 };

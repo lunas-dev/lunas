@@ -4,7 +4,12 @@ version = "0.0.1"
 edition = "2021"
 
 [dependencies]
-blve_compiler = { version = "0.1.0", path = "../blve_compiler" }
+blve_compiler = { version = "0.1.0", path = "../blve_compiler", features = [
+  "playground",
+] }
 serde_json = "1.0.120"
 tokio = { version = "1", features = ["full"] }
 warp = "0.3"
+
+[features]
+playground = []

@@ -12,6 +12,8 @@ use super::blocks::MetaData;
 pub enum DetailedMetaData {
     PropsInput(PropsInput),
     UseComponentStatement(UseComponentStatement),
+    UseAutoRoutingStatement,
+    UseRoutingStatement,
 }
 
 #[derive(Debug)]
@@ -54,8 +56,12 @@ impl<'a> DetailedMetaData {
                     })
                 })
                 .map_err(|_| "error parsing use statement")
+        } else if simple_meta_data.kind == "useAutoRouting" {
+            Ok(Self::UseAutoRoutingStatement)
+        } else if simple_meta_data.kind == "useRouting" {
+            Ok(Self::UseRoutingStatement)
         } else {
-            Err("input type is neither input nor use")
+            Err("unknown kind of meta data")
         }
     }
 }

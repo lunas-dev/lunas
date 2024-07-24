@@ -2,6 +2,7 @@ use blve_parser::{DetailedBlock, DetailedMetaData, PropsInput, UseComponentState
 use std::collections::HashSet;
 
 use crate::{
+    consts::ROUTER_VIEW,
     generate_statements::{
         gen_if_blk::gen_render_if_blk_func,
         utils::{create_indent, gen_binary_map_from_bool},
@@ -16,8 +17,10 @@ use crate::{
     },
     transformers::{
         html_utils::{check_html_elms, create_blve_internal_component_statement},
+        imports::generate_import_string,
         inputs::generate_input_variable_decl,
         js_utils::analyze_js,
+        router::generate_router_initialization_code,
     },
 };
 
@@ -42,10 +45,42 @@ pub fn generate_js_from_blocks(
         })
         .collect::<Vec<&PropsInput>>();
 
-    let component_names = use_component_statements
+    let mut component_names = use_component_statements
         .iter()
         .map(|use_component| use_component.component_name.clone())
         .collect::<Vec<String>>();
+
+    let mut imports = vec![];
+
+    #[cfg(not(feature = "playground"))]
+    {
+        imports.push("import { $$blveRouter } from \"blve/dist/runtime/router\";".to_string());
+    }
+
+    let using_auto_routing = blocks
+        .detailed_meta_data
+        .iter()
+        .any(|meta_data| match meta_data {
+            DetailedMetaData::UseAutoRoutingStatement => true,
+            _ => false,
+        });
+
+    if using_auto_routing {
+        imports.push(
+            "import { routes as $$blveGeneratedRoutes } from \"virtual:generated-routes\";"
+                .to_string(),
+        );
+        component_names.push(ROUTER_VIEW.to_string());
+    }
+
+    // TODO: add manual routing
+    // let using_routing = blocks
+    //     .detailed_meta_data
+    //     .iter()
+    //     .any(|meta_data| match meta_data {
+    //         DetailedMetaData::UseRoutingStatement => true,
+    //         _ => false,
+    //     });
 
     let runtime_path = match runtime_path.is_none() {
         true => "blve/dist/runtime".to_string(),
@@ -56,21 +91,18 @@ pub fn generate_js_from_blocks(
 
     let props_assignment = generate_input_variable_decl(&inputs, &mut variables);
 
-    let (variable_names, mut imports, js_output) =
+    let (variable_names, mut imports_in_script, js_output) =
         analyze_js(blocks, inputs.len() as u32, &mut variables);
 
+    let mut codes = vec![js_output];
+
+    imports.extend(imports_in_script.clone());
     for use_component in use_component_statements {
         imports.push(format!(
             "import {} from \"{}\";",
             use_component.component_name, use_component.component_path
         ));
     }
-
-    let imports_string = imports
-        .iter()
-        .map(|i| format!("\n{}", i))
-        .collect::<Vec<String>>()
-        .join("");
 
     // Clone HTML as mutable reference
     let mut needed_id = vec![];
@@ -116,7 +148,7 @@ pub fn generate_js_from_blocks(
         "{};",
         create_blve_internal_component_statement(&new_elm, "$$blveSetComponentElement")
     );
-    let mut codes = vec![js_output, html_insert];
+    codes.push(html_insert);
     match props_assignment.is_some() {
         true => codes.insert(0, props_assignment.unwrap()),
         false => {}
@@ -153,6 +185,11 @@ pub fn generate_js_from_blocks(
         &vec![],
         &variable_names,
     );
+    if using_auto_routing {
+        after_mount_code_array.push(generate_router_initialization_code(
+            custom_component_blocks_info,
+        )?);
+    }
     after_mount_code_array.extend(render_component);
     after_mount_code_array.push("this.blkUpdateMap = 0".to_string());
     let update_func_code = gen_on_update_func(elm_and_var_relation, variables, if_blocks_info);
@@ -173,7 +210,7 @@ pub fn generate_js_from_blocks(
 
     codes.push("return $$blveComponentReturn;".to_string());
 
-    let full_js_code = gen_full_code(runtime_path, imports_string, codes, inputs);
+    let full_js_code = gen_full_code(runtime_path, imports, codes, inputs);
     let css_code = blocks.detailed_language_blocks.css.clone();
 
     Ok((full_js_code, css_code))
@@ -181,10 +218,11 @@ pub fn generate_js_from_blocks(
 
 fn gen_full_code(
     runtime_path: String,
-    imports_string: String,
+    imports_string: Vec<String>,
     codes: Vec<String>,
     inputs: Vec<&PropsInput>,
 ) -> String {
+    let imports_string = generate_import_string(&imports_string);
     let arg_names_array = match inputs.len() == 0 {
         true => "".to_string(),
         false => {
@@ -631,6 +669,9 @@ pub fn gen_render_custom_component_statements(
     let mut render_custom_statements = vec![];
 
     for custom_component_block in custom_component_block_info.iter() {
+        if custom_component_block.is_routing_component {
+            continue;
+        }
         if custom_component_block.ctx != *ctx {
             continue;
         }

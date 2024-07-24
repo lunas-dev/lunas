@@ -12,18 +12,17 @@ tasks:
       - cd $PLAYGROUND_PATH&&pwd&&npm run dev
   dev-server:
     cmds:
-      - cargo watch -x run
+      - cargo watch -x run --features playground
     dir: crates/blve_dev_server
   build:
     cmds:
-      - |
-        cd ./crates/blve_compiler/ && wasm-pack build --target nodejs
-        cp ./crates/blve_compiler/pkg/*.js ./npm-pkgs/blve/src/wasm-compiler/
-        cp ./crates/blve_compiler/pkg/*.ts ./npm-pkgs/blve/src/wasm-compiler/
-        cp ./crates/blve_compiler/pkg/*.wasm ./npm-pkgs/blve/src/wasm-compiler/
-        cd ./npm-pkgs/blve/src/wasm-compiler && npm run build
-        mkdir -p ./npm-pkgs/blve/dist/wasm-compiler
-        cp -r ./npm-pkgs/blve/src/wasm-compiler/* ./npm-pkgs/blve/dist/wasm-compiler/
+      - cd ./crates/blve_compiler/ && wasm-pack build --target nodejs
+      - cp ./crates/blve_compiler/pkg/*.js ./npm-pkgs/blve/src/wasm-compiler/
+      - cp ./crates/blve_compiler/pkg/*.ts ./npm-pkgs/blve/src/wasm-compiler/
+      - cp ./crates/blve_compiler/pkg/*.wasm ./npm-pkgs/blve/src/wasm-compiler/
+      - cd ./npm-pkgs/blve/src/wasm-compiler && npm run build
+      - mkdir -p ./npm-pkgs/blve/dist/wasm-compiler
+      - cp -r ./npm-pkgs/blve/src/wasm-compiler/* ./npm-pkgs/blve/dist/wasm-compiler/
   build-web:
     cmds:
       - cd ./crates/blve_compiler/ && wasm-pack build --target web
