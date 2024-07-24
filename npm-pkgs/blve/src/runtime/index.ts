@@ -19,6 +19,7 @@ export type BlveComponentState = {
   ifBlkRenderers: { [key: string]: () => void };
   isMounted: boolean;
   componentElm: HTMLElement;
+  compSymbol: symbol;
   // componentElmentSetter: (innerHtml: string, topElmTag: string,topElmAttr: {[key: string]: string}) => void
   __blve_update: () => void;
   __blve_after_mount: () => void;
@@ -38,7 +39,46 @@ type BlveInternalElement = {
   topElmAttr: { [key: string]: string };
 };
 
-export const $$blveInitComponent = function (this: BlveComponentState) {
+class valueObj<T> {
+  dependencies: { [key: symbol]: [BlveComponentState, number] } = {};
+  constructor(
+    private _v: T,
+    componentObj?: BlveComponentState,
+    componentSymbol?: symbol,
+    symbolIndex: number = 0
+  ) {
+    if (componentSymbol && componentObj) {
+      this.dependencies[componentSymbol] = [componentObj, symbolIndex];
+    }
+  }
+
+  set v(v: T) {
+    if (this._v === v) return;
+    this._v = v;
+    for (const keys of Object.getOwnPropertySymbols(this.dependencies)) {
+      const [componentObj, symbolIndex] = this.dependencies[keys];
+      componentObj.valUpdateMap |= symbolIndex;
+      if (!componentObj.updatedFlag) {
+        Promise.resolve().then(componentObj.__blve_update.bind(componentObj));
+        componentObj.updatedFlag = true;
+      }
+    }
+  }
+
+  get v() {
+    return this._v;
+  }
+
+  addDependency(componentObj: BlveComponentState, symbolIndex: number) {
+    this.dependencies[componentObj.compSymbol] = [componentObj, symbolIndex];
+  }
+}
+
+export const $$blveInitComponent = function (
+  this: BlveComponentState,
+  args: { [key: string]: any } = {},
+  inputs: string[] = []
+) {
   this.updatedFlag = false;
   this.valUpdateMap = 0;
   this.blkRenderedMap = 0;
@@ -47,6 +87,7 @@ export const $$blveInitComponent = function (this: BlveComponentState) {
   this.currentIfBlkBit = 0;
   this.isMounted = false;
   this.ifBlkRenderers = {};
+  this.compSymbol = Symbol();
 
   const genBitOfVariables = function* (this: BlveComponentState) {
     while (true) {
@@ -59,6 +100,15 @@ export const $$blveInitComponent = function (this: BlveComponentState) {
       }
     }
   }.bind(this);
+
+  for (const key of inputs) {
+    const arg = args[key];
+    if (arg instanceof valueObj) {
+      arg.addDependency(this, genBitOfVariables().next().value);
+    } else {
+      genBitOfVariables().next();
+    }
+  }
 
   const genBitOfIfBlks = function* (this: BlveComponentState) {
     while (true) {
@@ -143,7 +193,12 @@ export const $$blveInitComponent = function (this: BlveComponentState) {
   }.bind(this);
 
   const createReactive = function <T>(this: BlveComponentState, v: T) {
-    return new valueObj<T>(v, this, genBitOfVariables().next().value);
+    return new valueObj<T>(
+      v,
+      this,
+      this.compSymbol,
+      genBitOfVariables().next().value
+    );
   }.bind(this);
 
   const createIfBlock = function (
@@ -182,28 +237,6 @@ export const $$blveInitComponent = function (this: BlveComponentState) {
     } as BlveModuleExports,
   };
 };
-
-class valueObj<T> {
-  constructor(
-    private _v: T,
-    private componentObj: BlveComponentState,
-    private symbolIndex: number
-  ) {}
-
-  set v(v: T) {
-    if (this._v === v) return;
-    this._v = v;
-    this.componentObj.valUpdateMap |= this.symbolIndex;
-    if (!this.componentObj.updatedFlag) {
-      Promise.resolve().then(this.componentObj.__blve_update.bind(this));
-      this.componentObj.updatedFlag = true;
-    }
-  }
-
-  get v() {
-    return this._v;
-  }
-}
 
 export function $$blveEscapeHtml(text: any): string {
   const map: { [key: string]: string } = {
@@ -291,4 +324,8 @@ export const createDomElementFromBlveElement = function (
   });
   componentElm.innerHTML = blveElement.innerHtml;
   return componentElm;
+};
+
+export const $$blveCreateNonReactive = function <T>(this: BlveComponentState, v: T) {
+  return new valueObj<T>(v);
 };

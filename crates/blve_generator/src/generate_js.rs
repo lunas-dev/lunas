@@ -1,4 +1,4 @@
-use blve_parser::{DetailedBlock, DetailedMetaData, UseComponentStatement};
+use blve_parser::{DetailedBlock, DetailedMetaData, PropsInput, UseComponentStatement};
 use std::collections::HashSet;
 
 use crate::{
@@ -18,6 +18,7 @@ use crate::{
     transformers::{
         html_utils::{check_html_elms, create_blve_internal_component_statement},
         imports::generate_import_string,
+        inputs::generate_input_variable_decl,
         js_utils::analyze_js,
         router::generate_router_initialization_code,
     },
@@ -35,6 +36,14 @@ pub fn generate_js_from_blocks(
             _ => None,
         })
         .collect::<Vec<&UseComponentStatement>>();
+    let inputs = blocks
+        .detailed_meta_data
+        .iter()
+        .filter_map(|meta_data| match meta_data {
+            DetailedMetaData::PropsInput(use_component) => Some(use_component),
+            _ => None,
+        })
+        .collect::<Vec<&PropsInput>>();
 
     let mut component_names = use_component_statements
         .iter()
@@ -54,6 +63,8 @@ pub fn generate_js_from_blocks(
         .any(|meta_data| match meta_data {
             DetailedMetaData::UseAutoRoutingStatement => true,
             _ => false,
+            // DetailedMetaData::UseAutoRoutingStatement => true,
+            // _ => false,
         });
 
     if using_auto_routing {
@@ -78,7 +89,12 @@ pub fn generate_js_from_blocks(
         false => runtime_path.unwrap(),
     };
 
-    let (variables, variable_names, imports_in_script, js_output) = analyze_js(blocks);
+    let mut variables = vec![];
+
+    let props_assignment = generate_input_variable_decl(&inputs, &mut variables);
+
+    let (variable_names, mut imports_in_script, js_output) =
+        analyze_js(blocks, inputs.len() as u32, &mut variables);
 
     let mut codes = vec![js_output];
 
@@ -135,6 +151,10 @@ pub fn generate_js_from_blocks(
         create_blve_internal_component_statement(&new_elm, "$$blveSetComponentElement")
     );
     codes.push(html_insert);
+    match props_assignment.is_some() {
+        true => codes.insert(0, props_assignment.unwrap()),
+        false => {}
+    }
 
     let text_node_renderer_group = TextNodeRendererGroup::new(
         &if_blocks_info,
@@ -159,10 +179,14 @@ pub fn generate_js_from_blocks(
         &action_and_target,
         &text_node_renderer_group,
         &custom_component_blocks_info,
+        &variable_names,
     );
     after_mount_code_array.extend(render_if);
-    let render_component =
-        gen_render_custom_component_statements(&custom_component_blocks_info, &vec![]);
+    let render_component = gen_render_custom_component_statements(
+        &custom_component_blocks_info,
+        &vec![],
+        &variable_names,
+    );
     if using_auto_routing {
         after_mount_code_array.push(generate_router_initialization_code(
             custom_component_blocks_info,
@@ -188,14 +212,29 @@ pub fn generate_js_from_blocks(
 
     codes.push("return $$blveComponentReturn;".to_string());
 
-    let full_js_code = gen_full_code(runtime_path, imports, codes);
+    let full_js_code = gen_full_code(runtime_path, imports, codes, inputs);
     let css_code = blocks.detailed_language_blocks.css.clone();
 
     Ok((full_js_code, css_code))
 }
 
-fn gen_full_code(runtime_path: String, imports_string: Vec<String>, codes: Vec<String>) -> String {
+fn gen_full_code(
+    runtime_path: String,
+    imports_string: Vec<String>,
+    codes: Vec<String>,
+    inputs: Vec<&PropsInput>,
+) -> String {
     let imports_string = generate_import_string(&imports_string);
+    let arg_names_array = match inputs.len() == 0 {
+        true => "".to_string(),
+        false => {
+            let arr = inputs
+                .iter()
+                .map(|i| format!("\"{}\"", i.variable_name.clone()))
+                .collect::<Vec<String>>();
+            format!(", [{}]", arr.join(", "))
+        }
+    };
 
     // codesにcreate_indentを適用して、\nでjoinする -> code
     let code = codes
@@ -204,13 +243,13 @@ fn gen_full_code(runtime_path: String, imports_string: Vec<String>, codes: Vec<S
         .collect::<Vec<String>>()
         .join("\n");
     format!(
-        r#"import {{ $$blveAddEvListener, $$blveEscapeHtml, $$blveGetElmRefs, $$blveInitComponent, $$blveReplaceInnerHtml, $$blveReplaceText, $$blveReplaceAttr, $$blveInsertEmpty, $$blveInsertContent, $$createBlveElement }} from "{}";{}
+        r#"import {{ $$blveAddEvListener, $$blveEscapeHtml, $$blveGetElmRefs, $$blveInitComponent, $$blveReplaceInnerHtml, $$blveReplaceText, $$blveReplaceAttr, $$blveInsertEmpty, $$blveInsertContent, $$createBlveElement, $$blveCreateNonReactive }} from "{}";{}
 
-export default function() {{
-    const {{ $$blveSetComponentElement, $$blveUpdateComponent, $$blveComponentReturn, $$blveAfterMount, $$blveReactive, $$blveRenderIfBlock, $$blveCreateIfBlock }} = new $$blveInitComponent();
+export default function(args = {{}}) {{
+    const {{ $$blveSetComponentElement, $$blveUpdateComponent, $$blveComponentReturn, $$blveAfterMount, $$blveReactive, $$blveRenderIfBlock, $$blveCreateIfBlock }} = new $$blveInitComponent(args{});
 {}
 }}"#,
-        runtime_path, imports_string, code,
+        runtime_path, imports_string, arg_names_array, code,
     )
 }
 
@@ -627,6 +666,7 @@ pub fn gen_create_anchor_statements(
 pub fn gen_render_custom_component_statements(
     custom_component_block_info: &Vec<CustomComponentBlockInfo>,
     ctx: &Vec<String>,
+    variable_names: &Vec<String>,
 ) -> Vec<String> {
     let mut render_custom_statements = vec![];
 
@@ -641,9 +681,10 @@ pub fn gen_render_custom_component_statements(
             match custom_component_block.distance_to_next_elm > 1 {
                 true => {
                     render_custom_statements.push(format!(
-                        "const $$blve{}Comp = {}().insert($$blve{}Ref, $$blve{}Anchor);",
+                        "const $$blve{}Comp = {}({}).insert($$blve{}Ref, $$blve{}Anchor);",
                         custom_component_block.custom_component_block_id,
                         custom_component_block.component_name,
+                        custom_component_block.args.to_object(variable_names),
                         custom_component_block.parent_id,
                         custom_component_block.custom_component_block_id
                     ));
@@ -654,9 +695,10 @@ pub fn gen_render_custom_component_statements(
                         None => "null".to_string(),
                     };
                     render_custom_statements.push(format!(
-                        "const $$blve{}Comp = {}().insert($$blve{}Ref, {});",
+                        "const $$blve{}Comp = {}({}).insert($$blve{}Ref, {});",
                         custom_component_block.custom_component_block_id,
                         custom_component_block.component_name,
+                        custom_component_block.args.to_object(variable_names),
                         custom_component_block.parent_id,
                         anchor_ref_name
                     ));
@@ -664,9 +706,10 @@ pub fn gen_render_custom_component_statements(
             }
         } else {
             render_custom_statements.push(format!(
-                "const $$blve{}Comp = {}().mount($$blve{}Ref);",
+                "const $$blve{}Comp = {}({}).mount($$blve{}Ref);",
                 custom_component_block.custom_component_block_id,
                 custom_component_block.component_name,
+                custom_component_block.args.to_object(variable_names),
                 custom_component_block.parent_id
             ));
         }
