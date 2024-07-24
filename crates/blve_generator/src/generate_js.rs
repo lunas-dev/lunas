@@ -63,8 +63,6 @@ pub fn generate_js_from_blocks(
         .any(|meta_data| match meta_data {
             DetailedMetaData::UseAutoRoutingStatement => true,
             _ => false,
-            // DetailedMetaData::UseAutoRoutingStatement => true,
-            // _ => false,
         });
 
     if using_auto_routing {
