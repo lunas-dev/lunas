@@ -1,6 +1,12 @@
 # Changelog
 
-## [0.0.1-beta.5](https://github.com/blvedev/blve/compare/0.0.1-beta.4...0.0.1-beta.5) (2024-7-28)
+## [0.0.1-beta.6](https://github.com/lunas-dev/lunas/compare/0.0.1-beta.5...0.0.1-beta.6) (2024-7-28)
+
+### Other Changes
+
+- Changed the name of the project from `Blve` to `Lunas`. #46
+
+## [0.0.1-beta.5](https://github.com/lunas-dev/lunas/compare/0.0.1-beta.4...0.0.1-beta.5) (2024-7-28)
 
 ### Features
 
@@ -15,7 +21,7 @@
 - Added compiler server for development. #40
 - Added automatic labels for issues. #41
 
-## [0.0.1-beta.4](https://github.com/blvedev/blve/compare/0.0.1-beta.3...0.0.1-beta.4) (2024-6-7)
+## [0.0.1-beta.4](https://github.com/lunas-dev/lunas/compare/0.0.1-beta.3...0.0.1-beta.4) (2024-6-7)
 
 ### Features
 
@@ -31,18 +37,18 @@
 ### DevOps
 - Added git-pr-release action. #19 #20 #21
 
-## [0.0.1-beta.3](https://github.com/blvedev/blve/compare/0.0.1-beta.2...0.0.1-beta.3) (2024-6-7)
+## [0.0.1-beta.3](https://github.com/lunas-dev/lunas/compare/0.0.1-beta.2...0.0.1-beta.3) (2024-6-7)
 
 ### Features
 - Added two-way data binding support.
 - Added support for `if` block.
 
-## [0.0.1-beta.2](https://github.com/blvedev/blve/compare/0.0.1-beta.1...0.0.1-beta.2) (2024-6-7)
+## [0.0.1-beta.2](https://github.com/lunas-dev/lunas/compare/0.0.1-beta.1...0.0.1-beta.2) (2024-6-7)
 
 ### Features
 - Attribute binding support
 
-## [0.0.1-beta.1](https://github.com/blvedev/blve/tree/0.0.1-beta.1) (2024-6-7)
+## [0.0.1-beta.1](https://github.com/lunas-dev/lunas/tree/0.0.1-beta.1) (2024-6-7)
 
 ### Features
 - Initial release with basic features

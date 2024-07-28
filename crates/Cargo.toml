@@ -3,9 +3,9 @@
 # https://doc.rust-lang.org/cargo/reference/resolver.html#resolver-versions
 resolver = "2"
 members = [
-  "blve_generator",
-  "blve_parser",
-  "blve_compiler",
-  "blve_html_parser",
-  "blve_dev_server",
+  "lunas_generator",
+  "lunas_parser",
+  "lunas_compiler",
+  "lunas_html_parser",
+  "lunas_dev_server",
 ]
