@@ -49,7 +49,7 @@ fn parse_language_blocks<'a>(blks: Vec<LanguageBlock>) -> Result<DetailedLanguag
         }
         let content = block.content.clone();
 
-        hm.insert(language_name.clone(), content);
+        hm.insert(language_name, content);
     }
 
     let html = hm.get("html");

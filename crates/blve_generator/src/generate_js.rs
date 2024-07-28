@@ -91,7 +91,7 @@ pub fn generate_js_from_blocks(
 
     let props_assignment = generate_input_variable_decl(&inputs, &mut variables);
 
-    let (variable_names, mut imports_in_script, js_output) =
+    let (variable_names, imports_in_script, js_output) =
         analyze_js(blocks, inputs.len() as u32, &mut variables);
 
     let mut codes = vec![js_output];

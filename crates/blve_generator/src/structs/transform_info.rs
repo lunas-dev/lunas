@@ -146,12 +146,10 @@ pub fn sort_if_blocks(if_blocks: &mut Vec<IfBlockInfo>) {
 #[derive(Debug, Clone)]
 pub struct CustomComponentBlockInfo {
     pub parent_id: String,
-    pub target_if_blk_id: String,
     pub distance_to_next_elm: u64,
     pub have_sibling_elm: bool,
     pub target_anchor_id: Option<String>,
     pub component_name: String,
-    pub ref_text_node_id: Option<String>,
     pub ctx: Vec<String>,
     pub custom_component_block_id: String,
     pub element_location: Vec<usize>,
@@ -223,8 +221,6 @@ impl ComponentArgs {
 pub struct ManualRendererForTextNode {
     pub parent_id: String,
     pub text_node_id: String,
-    pub distance_to_next_elm: u64,
-    pub dep_vars: Vec<String>,
     pub content: String,
     pub ctx: Vec<String>,
     pub element_location: Vec<usize>,
