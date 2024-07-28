@@ -22,16 +22,16 @@ export type BlveComponentState = {
   compSymbol: symbol;
   resetDependecies: (() => void)[];
   // componentElmentSetter: (innerHtml: string, topElmTag: string,topElmAttr: {[key: string]: string}) => void
-  __blve_update: () => void;
-  __blve_after_mount: () => void;
-  // __blve_init: () => void;
-  // __blve_destroy: () => void;
-  // __blve_update_component: () => void;
-  // __blve_update_component_end: () => void;
-  // __blve_update_component_start: () => void;
-  // __blve_update_end: () => void;
-  // __blve_update_start: () => void;
-  // __blve_init_component: () => void;
+  __lunas_update: () => void;
+  __lunas_after_mount: () => void;
+  // __lunas_init: () => void;
+  // __lunas_destroy: () => void;
+  // __lunas_update_component: () => void;
+  // __lunas_update_component_end: () => void;
+  // __lunas_update_component_start: () => void;
+  // __lunas_update_end: () => void;
+  // __lunas_update_start: () => void;
+  // __lunas_init_component: () => void;
 };
 
 type BlveInternalElement = {
@@ -60,7 +60,7 @@ class valueObj<T> {
       const [componentObj, symbolIndex] = this.dependencies[keys];
       componentObj.valUpdateMap |= symbolIndex;
       if (!componentObj.updatedFlag) {
-        Promise.resolve().then(componentObj.__blve_update.bind(componentObj));
+        Promise.resolve().then(componentObj.__lunas_update.bind(componentObj));
         componentObj.updatedFlag = true;
       }
     }
@@ -150,7 +150,7 @@ export const $$lunasInitComponent = function (
     this: BlveComponentState,
     afterMount: () => void
   ) {
-    this.__blve_after_mount = afterMount;
+    this.__lunas_after_mount = afterMount;
   }.bind(this);
 
   const mount = function (
@@ -166,7 +166,7 @@ export const $$lunasInitComponent = function (
       this.internalElement.topElmTag
     }>`;
     this.componentElm = elm.firstElementChild as HTMLElement;
-    this.__blve_after_mount();
+    this.__lunas_after_mount();
     this.isMounted = true;
     return this;
   }.bind(this);
@@ -179,7 +179,7 @@ export const $$lunasInitComponent = function (
     if (this.isMounted) throw new Error("Component is already mounted");
     this.componentElm = createDomElementFromBlveElement(this.internalElement);
     elm.insertBefore(this.componentElm, anchor);
-    this.__blve_after_mount();
+    this.__lunas_after_mount();
     this.isMounted = true;
     return this;
   }.bind(this);
@@ -195,7 +195,7 @@ export const $$lunasInitComponent = function (
     this: BlveComponentState,
     updateFunc: () => void
   ) {
-    this.__blve_update = (() => {
+    this.__lunas_update = (() => {
       if (!this.updatedFlag) return;
       updateFunc.call(this);
       this.updatedFlag = false;
