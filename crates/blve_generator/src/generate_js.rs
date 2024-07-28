@@ -54,7 +54,7 @@ pub fn generate_js_from_blocks(
 
     #[cfg(not(feature = "playground"))]
     {
-        imports.push("import { $$blveRouter } from \"blve/dist/runtime/router\";".to_string());
+        imports.push("import { $$lunasRouter } from \"blve/dist/runtime/router\";".to_string());
     }
 
     let using_auto_routing = blocks
@@ -67,7 +67,7 @@ pub fn generate_js_from_blocks(
 
     if using_auto_routing {
         imports.push(
-            "import { routes as $$blveGeneratedRoutes } from \"virtual:generated-routes\";"
+            "import { routes as $$lunasGeneratedRoutes } from \"virtual:generated-routes\";"
                 .to_string(),
         );
         component_names.push(ROUTER_VIEW.to_string());
@@ -146,7 +146,7 @@ pub fn generate_js_from_blocks(
     // Generate JavaScript
     let html_insert = format!(
         "{};",
-        create_blve_internal_component_statement(&new_elm, "$$blveSetComponentElement")
+        create_blve_internal_component_statement(&new_elm, "$$lunasSetComponentElement")
     );
     codes.push(html_insert);
     match props_assignment.is_some() {
@@ -200,7 +200,7 @@ pub fn generate_js_from_blocks(
         .collect::<Vec<String>>()
         .join("\n");
     let after_mount_func_code = format!(
-        r#"$$blveAfterMount(function () {{
+        r#"$$lunasAfterMount(function () {{
 {}
 }});
 "#,
@@ -208,7 +208,7 @@ pub fn generate_js_from_blocks(
     );
     codes.push(after_mount_func_code);
 
-    codes.push("return $$blveComponentReturn;".to_string());
+    codes.push("return $$lunasComponentReturn;".to_string());
 
     let full_js_code = gen_full_code(runtime_path, imports, codes, inputs);
     let css_code = blocks.detailed_language_blocks.css.clone();
@@ -241,10 +241,10 @@ fn gen_full_code(
         .collect::<Vec<String>>()
         .join("\n");
     format!(
-        r#"import {{ $$blveAddEvListener, $$blveEscapeHtml, $$blveGetElmRefs, $$blveInitComponent, $$blveReplaceInnerHtml, $$blveReplaceText, $$blveReplaceAttr, $$blveInsertEmpty, $$blveInsertContent, $$createBlveElement, $$blveCreateNonReactive }} from "{}";{}
+        r#"import {{ $$lunasAddEvListener, $$lunasEscapeHtml, $$lunasGetElmRefs, $$lunasInitComponent, $$lunasReplaceInnerHtml, $$lunasReplaceText, $$lunasReplaceAttr, $$lunasInsertEmpty, $$lunasInsertContent, $$createBlveElement, $$lunasCreateNonReactive }} from "{}";{}
 
 export default function(args = {{}}) {{
-    const {{ $$blveSetComponentElement, $$blveUpdateComponent, $$blveComponentReturn, $$blveAfterMount, $$blveReactive, $$blveRenderIfBlock, $$blveCreateIfBlock }} = new $$blveInitComponent(args{});
+    const {{ $$lunasSetComponentElement, $$lunasUpdateComponent, $$lunasComponentReturn, $$lunasAfterMount, $$lunasReactive, $$lunasRenderIfBlock, $$lunasCreateIfBlock }} = new $$lunasInitComponent(args{});
 {}
 }}"#,
         runtime_path, imports_string, arg_names_array, code,
@@ -282,12 +282,12 @@ pub fn gen_ref_getter_from_needed_ids(
     ref_getter_str.push_str(
         needed_ids_to_get_here
             .iter()
-            .map(|id| format!("$$blve{}Ref", id.node_id))
+            .map(|id| format!("$$lunas{}Ref", id.node_id))
             .collect::<Vec<String>>()
             .join(", ")
             .as_str(),
     );
-    ref_getter_str.push_str("] = $$blveGetElmRefs([");
+    ref_getter_str.push_str("] = $$lunasGetElmRefs([");
     ref_getter_str.push_str(
         needed_ids_to_get_here
             .iter()
@@ -315,7 +315,7 @@ pub fn create_event_listener(
             continue;
         }
         result.push(format!(
-            "$$blveAddEvListener($$blve{}Ref, \"{}\", {});",
+            "$$lunasAddEvListener($$lunas{}Ref, \"{}\", {});",
             action_and_target.target,
             action_and_target.action_name,
             action_and_target.action.to_string()
@@ -333,12 +333,12 @@ fn generate_if_block_ref_var_decl(
     if if_blocks_info.len() > 0 {
         let mut variables_to_declare = HashSet::new();
         for if_block_info in if_blocks_info.iter() {
-            variables_to_declare.insert(format!("$$blve{}Ref", if_block_info.if_blk_id));
+            variables_to_declare.insert(format!("$$lunas{}Ref", if_block_info.if_blk_id));
         }
 
         for needed_id in needed_id.iter() {
             if needed_id.ctx.len() != 0 {
-                variables_to_declare.insert(format!("$$blve{}Ref", needed_id.node_id.clone()));
+                variables_to_declare.insert(format!("$$lunas{}Ref", needed_id.node_id.clone()));
             }
         }
 
@@ -347,13 +347,13 @@ fn generate_if_block_ref_var_decl(
                 crate::structs::transform_info::TextNodeRenderer::ManualRenderer(txt_renderer) => {
                     if txt_renderer.ctx.len() != 0 {
                         variables_to_declare
-                            .insert(format!("$$blve{}Text", txt_renderer.text_node_id.clone()));
+                            .insert(format!("$$lunas{}Text", txt_renderer.text_node_id.clone()));
                     }
                 }
                 crate::structs::transform_info::TextNodeRenderer::IfBlockRenderer(if_renderer) => {
                     if if_renderer.ctx_over_if.len() != 0 {
                         variables_to_declare
-                            .insert(format!("$$blve{}Anchor", if_renderer.if_blk_id.clone()));
+                            .insert(format!("$$lunas{}Anchor", if_renderer.if_blk_id.clone()));
                     }
                 }
                 crate::structs::transform_info::TextNodeRenderer::CustomComponentRenderer(
@@ -361,7 +361,7 @@ fn generate_if_block_ref_var_decl(
                 ) => {
                     if custom_renderer.ctx.len() != 0 {
                         variables_to_declare.insert(format!(
-                            "$$blve{}Anchor",
+                            "$$lunas{}Anchor",
                             custom_renderer.custom_component_block_id.clone()
                         ));
                     }
@@ -416,9 +416,9 @@ fn gen_on_update_func(
             if_blk_rendering_cond,
             combined_number,
             if_block_info.condition,
-            format!("$$blveRenderIfBlock(\"{}\")", &if_block_info.if_blk_id),
-            format!("$$blve{}Ref.remove()", &if_block_info.if_blk_id),
-            format!("$$blve{}Ref = null", &if_block_info.if_blk_id),
+            format!("$$lunasRenderIfBlock(\"{}\")", &if_block_info.if_blk_id),
+            format!("$$lunas{}Ref.remove()", &if_block_info.if_blk_id),
+            format!("$$lunas{}Ref = null", &if_block_info.if_blk_id),
             format!("this.blkRenderedMap ^= {}", index + 1),
         ));
     }
@@ -450,7 +450,7 @@ fn gen_on_update_func(
                     };
 
                     replace_statements.push(format!(
-                        "{}this.valUpdateMap & {:?} && $$blveReplaceAttr(\"{}\", {}, $$blve{}Ref);",
+                        "{}this.valUpdateMap & {:?} && $$lunasReplaceAttr(\"{}\", {}, $$lunas{}Ref);",
                         if_blk_rendering_cond,
                         get_combined_binary_number(dep_vars_assined_numbers),
                         c.attribute_key,
@@ -498,7 +498,7 @@ fn gen_on_update_func(
                 };
 
                 replace_statements.push(format!(
-                    "{}{} && $$blveReplaceText(`{}`, $$blve{}Ref);",
+                    "{}{} && $$lunasReplaceText(`{}`, $$lunas{}Ref);",
                     if_blk_rendering_cond,
                     to_update_cond,
                     elm_and_variable_relation.content_of_element.trim(),
@@ -546,7 +546,7 @@ fn gen_on_update_func(
                 };
 
                 replace_statements.push(format!(
-                    "{}{} && $$blveReplaceText(`{}`, $$blve{}Text);",
+                    "{}{} && $$lunasReplaceText(`{}`, $$lunas{}Text);",
                     if_blk_rendering_cond,
                     to_update_cond,
                     txt_and_var_content.content_of_element.trim(),
@@ -563,7 +563,7 @@ fn gen_on_update_func(
         .join("\n");
 
     let result = format!(
-        r#"$$blveUpdateComponent(function () {{
+        r#"$$lunasUpdateComponent(function () {{
 {code}
 }});"#,
         code = code
@@ -584,7 +584,7 @@ pub fn gen_create_anchor_statements(
                     continue;
                 }
                 let anchor_id = match &txt_renderer.target_anchor_id {
-                    Some(anchor_id) => format!("$$blve{}Ref", anchor_id),
+                    Some(anchor_id) => format!("$$lunas{}Ref", anchor_id),
                     None => "null".to_string(),
                 };
                 let variable_declaration_word = match ctx_condition.len() != 0 {
@@ -593,7 +593,7 @@ pub fn gen_create_anchor_statements(
                     false => "const ",
                 };
                 let create_anchor_statement = format!(
-                    "{}$$blve{}Text = $$blveInsertContent(`{}`,$$blve{}Ref,{});",
+                    "{}$$lunas{}Text = $$lunasInsertContent(`{}`,$$lunas{}Ref,{});",
                     &variable_declaration_word,
                     &txt_renderer.text_node_id,
                     &txt_renderer.content.trim(),
@@ -609,7 +609,7 @@ pub fn gen_create_anchor_statements(
                             continue;
                         }
                         let anchor_id = match &if_block.target_anchor_id {
-                            Some(anchor_id) => format!("$$blve{}Ref", anchor_id),
+                            Some(anchor_id) => format!("$$lunas{}Ref", anchor_id),
                             None => "null".to_string(),
                         };
                         let variable_declaration_word = match ctx_condition.len() != 0 {
@@ -618,7 +618,7 @@ pub fn gen_create_anchor_statements(
                             false => "const ",
                         };
                         let create_anchor_statement = format!(
-                            "{}$$blve{}Anchor = $$blveInsertEmpty($$blve{}Ref,{});",
+                            "{}$$lunas{}Anchor = $$lunasInsertEmpty($$lunas{}Ref,{});",
                             variable_declaration_word,
                             if_block.if_blk_id,
                             if_block.parent_id,
@@ -637,7 +637,7 @@ pub fn gen_create_anchor_statements(
                         continue;
                     }
                     let anchor_id = match &custom_component.target_anchor_id {
-                        Some(anchor_id) => format!("$$blve{}Ref", anchor_id),
+                        Some(anchor_id) => format!("$$lunas{}Ref", anchor_id),
                         None => "null".to_string(),
                     };
                     let variable_declaration_word = match ctx_condition.len() != 0 {
@@ -646,7 +646,7 @@ pub fn gen_create_anchor_statements(
                         false => "const ",
                     };
                     let create_anchor_statement = format!(
-                        "{}$$blve{}Anchor = $$blveInsertEmpty($$blve{}Ref,{});",
+                        "{}$$lunas{}Anchor = $$lunasInsertEmpty($$lunas{}Ref,{});",
                         variable_declaration_word,
                         custom_component.custom_component_block_id,
                         custom_component.parent_id,
@@ -679,7 +679,7 @@ pub fn gen_render_custom_component_statements(
             match custom_component_block.distance_to_next_elm > 1 {
                 true => {
                     render_custom_statements.push(format!(
-                        "const $$blve{}Comp = {}({}).insert($$blve{}Ref, $$blve{}Anchor);",
+                        "const $$lunas{}Comp = {}({}).insert($$lunas{}Ref, $$lunas{}Anchor);",
                         custom_component_block.custom_component_block_id,
                         custom_component_block.component_name,
                         custom_component_block.args.to_object(variable_names),
@@ -689,11 +689,11 @@ pub fn gen_render_custom_component_statements(
                 }
                 false => {
                     let anchor_ref_name = match &custom_component_block.target_anchor_id {
-                        Some(anchor_id) => format!("$$blve{}Ref", anchor_id),
+                        Some(anchor_id) => format!("$$lunas{}Ref", anchor_id),
                         None => "null".to_string(),
                     };
                     render_custom_statements.push(format!(
-                        "const $$blve{}Comp = {}({}).insert($$blve{}Ref, {});",
+                        "const $$lunas{}Comp = {}({}).insert($$lunas{}Ref, {});",
                         custom_component_block.custom_component_block_id,
                         custom_component_block.component_name,
                         custom_component_block.args.to_object(variable_names),
@@ -704,7 +704,7 @@ pub fn gen_render_custom_component_statements(
             }
         } else {
             render_custom_statements.push(format!(
-                "const $$blve{}Comp = {}({}).mount($$blve{}Ref);",
+                "const $$lunas{}Comp = {}({}).mount($$lunas{}Ref);",
                 custom_component_block.custom_component_block_id,
                 custom_component_block.component_name,
                 custom_component_block.args.to_object(variable_names),

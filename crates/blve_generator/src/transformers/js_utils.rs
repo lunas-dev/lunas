@@ -93,7 +93,7 @@ fn find_variable_declarations(
                                 str_positions.push(TransformInfo::AddStringToPosition(
                                     AddStringToPosition {
                                         position: (start.as_u64().unwrap() - 1) as u32,
-                                        string: "$$blveReactive(".to_string(),
+                                        string: "$$lunasReactive(".to_string(),
                                     },
                                 ));
                                 str_positions.push(TransformInfo::AddStringToPosition(
@@ -209,7 +209,7 @@ pub fn search_json(
                                 vec![TransformInfo::ReplaceText(ReplaceText {
                                     start_position: start - 1,
                                     end_position: end - 1,
-                                    string: "$$blveRouter".to_string(),
+                                    string: "$$lunasRouter".to_string(),
                                 })],
                                 vec![],
                                 vec![],

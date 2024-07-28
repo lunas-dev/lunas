@@ -11,24 +11,24 @@ pub fn generate_router_initialization_code(
             match router_component.distance_to_next_elm > 1 {
                 true => {
                     format!(
-                        "$$blveRouter.initialize($$blveGeneratedRoutes, $$blve{}Ref, $$blve{}Anchor, true);",
+                        "$$lunasRouter.initialize($$lunasGeneratedRoutes, $$lunas{}Ref, $$lunas{}Anchor, true);",
                         router_component.parent_id, router_component.custom_component_block_id
                     )
                 }
                 false => {
                     let anchor_ref_name = match &router_component.target_anchor_id {
-                        Some(anchor_id) => format!("$$blve{}Ref", anchor_id),
+                        Some(anchor_id) => format!("$$lunas{}Ref", anchor_id),
                         None => "null".to_string(),
                     };
                     format!(
-                        "$$blveRouter.initialize($$blveGeneratedRoutes, $$blve{}Ref, {}, true);",
+                        "$$lunasRouter.initialize($$lunasGeneratedRoutes, $$lunas{}Ref, {}, true);",
                         router_component.parent_id, anchor_ref_name
                     )
                 }
             }
         } else {
             format!(
-                "$$blveRouter.initialize($$blveGeneratedRoutes, $$blve{}Ref, null, false);",
+                "$$lunasRouter.initialize($$lunasGeneratedRoutes, $$lunas{}Ref, null, false);",
                 router_component.parent_id,
             )
         }),

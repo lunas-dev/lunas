@@ -80,7 +80,7 @@ class valueObj<T> {
   }
 }
 
-export const $$blveInitComponent = function (
+export const $$lunasInitComponent = function (
   this: BlveComponentState,
   args: { [key: string]: any } = {},
   inputs: string[] = []
@@ -236,13 +236,13 @@ export const $$blveInitComponent = function (
   }.bind(this);
 
   return {
-    $$blveSetComponentElement: componentElementSetter,
-    $$blveUpdateComponent: updateComponent,
-    $$blveAfterMount: setAfterMount,
-    $$blveReactive: createReactive,
-    $$blveCreateIfBlock: createIfBlock,
-    $$blveRenderIfBlock: renderIfBlock,
-    $$blveComponentReturn: {
+    $$lunasSetComponentElement: componentElementSetter,
+    $$lunasUpdateComponent: updateComponent,
+    $$lunasAfterMount: setAfterMount,
+    $$lunasReactive: createReactive,
+    $$lunasCreateIfBlock: createIfBlock,
+    $$lunasRenderIfBlock: renderIfBlock,
+    $$lunasComponentReturn: {
       mount,
       insert,
       __unmount,
@@ -250,7 +250,7 @@ export const $$blveInitComponent = function (
   };
 };
 
-export function $$blveEscapeHtml(text: any): string {
+export function $$lunasEscapeHtml(text: any): string {
   const map: { [key: string]: string } = {
     "&": "&amp;",
     "<": "&lt;",
@@ -264,7 +264,7 @@ export function $$blveEscapeHtml(text: any): string {
   });
 }
 
-export function $$blveGetElmRefs(ids: string[], preserveId: number) {
+export function $$lunasGetElmRefs(ids: string[], preserveId: number) {
   return ids.map((id, index) => {
     const e = document.getElementById(id)!;
     (2 ** index) & preserveId && e.removeAttribute("id");
@@ -272,7 +272,7 @@ export function $$blveGetElmRefs(ids: string[], preserveId: number) {
   });
 }
 
-export function $$blveAddEvListener(
+export function $$lunasAddEvListener(
   elm: HTMLElement,
   evName: string,
   evFunc: EventListener
@@ -280,15 +280,19 @@ export function $$blveAddEvListener(
   elm.addEventListener(evName, evFunc);
 }
 
-export function $$blveReplaceText(content: any, elm: Node) {
-  elm.textContent = $$blveEscapeHtml(content);
+export function $$lunasReplaceText(content: any, elm: Node) {
+  elm.textContent = $$lunasEscapeHtml(content);
 }
 
-export function $$blveReplaceInnerHtml(content: any, elm: HTMLElement) {
-  elm.innerHTML = $$blveEscapeHtml(content);
+export function $$lunasReplaceInnerHtml(content: any, elm: HTMLElement) {
+  elm.innerHTML = $$lunasEscapeHtml(content);
 }
 
-export function $$blveReplaceAttr(key: string, content: any, elm: HTMLElement) {
+export function $$lunasReplaceAttr(
+  key: string,
+  content: any,
+  elm: HTMLElement
+) {
   if (content === undefined && elm.hasAttribute(key)) {
     elm.removeAttribute(key);
     return;
@@ -296,7 +300,7 @@ export function $$blveReplaceAttr(key: string, content: any, elm: HTMLElement) {
   (elm as any)[key] = String(content);
 }
 
-export function $$blveInsertEmpty(
+export function $$lunasInsertEmpty(
   parent: HTMLElement,
   anchor: HTMLElement | null
 ) {
@@ -305,7 +309,7 @@ export function $$blveInsertEmpty(
   return empty;
 }
 
-export function $$blveInsertContent(
+export function $$lunasInsertContent(
   content: string,
   parent: HTMLElement,
   anchor: HTMLElement | null
@@ -338,7 +342,7 @@ export const createDomElementFromBlveElement = function (
   return componentElm;
 };
 
-export const $$blveCreateNonReactive = function <T>(
+export const $$lunasCreateNonReactive = function <T>(
   this: BlveComponentState,
   v: T
 ) {

@@ -65,7 +65,7 @@ pub fn gen_render_if_blk_func(
             let mut child_block_rendering_exec = vec![];
             for child_if in children {
                 child_block_rendering_exec.push(format!(
-                    "\n{} && $$blveRenderIfBlock(\"{}\");",
+                    "\n{} && $$lunasRenderIfBlock(\"{}\");",
                     child_if.condition, &child_if.if_blk_id
                 ));
             }
@@ -75,12 +75,12 @@ pub fn gen_render_if_blk_func(
         };
         rendering_statement.extend(child_block_rendering_exec.iter().map(|x| x.as_str()));
 
-        let name_of_parent_of_if_blk = format!("$$blve{}Ref", if_block.parent_id);
+        let name_of_parent_of_if_blk = format!("$$lunas{}Ref", if_block.parent_id);
         let name_of_anchor_of_if_blk = match if_block.distance_to_next_elm > 1 {
-            true => format!("$$blve{}Anchor", if_block.if_blk_id),
+            true => format!("$$lunas{}Anchor", if_block.if_blk_id),
             false => match if_block.target_anchor_id {
                 Some(_) => format!(
-                    "$$blve{}Ref",
+                    "$$lunas{}Ref",
                     if_block.target_anchor_id.as_ref().unwrap().clone()
                 ),
                 None => format!("null"),
@@ -110,7 +110,7 @@ pub fn gen_render_if_blk_func(
         );
 
         let create_if_func = format!(
-            r#"$$blveCreateIfBlock(
+            r#"$$lunasCreateIfBlock(
 {}
 ) "#,
             create_indent(create_if_func_inside.as_str())
@@ -119,7 +119,7 @@ pub fn gen_render_if_blk_func(
         render_if.push(create_if_func);
         if if_block.ctx_over_if.len() == 0 {
             render_if.push(format!(
-                "{} && $$blveRenderIfBlock(\"{}\")",
+                "{} && $$lunasRenderIfBlock(\"{}\")",
                 if_block.condition, &if_block.if_blk_id
             ));
         }

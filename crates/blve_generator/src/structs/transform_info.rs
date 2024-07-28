@@ -173,7 +173,7 @@ impl ComponentArg {
             format!("\"{}\": {}", self.name, value_converted_to_obj)
         } else {
             format!(
-                "\"{}\": $$blveCreateNonReactive(\"{}\")",
+                "\"{}\": $$lunasCreateNonReactive(\"{}\")",
                 self.name,
                 self.value.clone().unwrap()
             )

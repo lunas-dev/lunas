@@ -150,7 +150,7 @@ pub fn find_non_reactives(json: &Value, variables: &Vec<String>) -> Vec<Transfor
                 }));
                 positions.push(TransformInfo::AddStringToPosition(AddStringToPosition {
                     position: (start.as_u64().unwrap() - 1) as u32,
-                    string: "$$blveCreateNonReactive(".to_string(),
+                    string: "$$lunasCreateNonReactive(".to_string(),
                 }));
 
                 return positions;

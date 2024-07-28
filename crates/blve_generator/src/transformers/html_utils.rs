@@ -501,12 +501,12 @@ fn set_id_for_needed_elm(
 
 // FIXME:カッコが複数でも、escapeTextは各バインディングに1つだけでいい
 // 具体例:
-// 現在:${$$blveEscapeHtml(count.v+count.v)} count ${$$blveEscapeHtml(count)} ${$$blveEscapeHtml( count + count )}
-// 将来的:${$$blveEscapeHtml(`${count.v+count.v} count ${count} ${ count + count }`)}
+// 現在:${$$lunasEscapeHtml(count.v+count.v)} count ${$$lunasEscapeHtml(count)} ${$$lunasEscapeHtml( count + count )}
+// 将来的:${$$lunasEscapeHtml(`${count.v+count.v} count ${count} ${ count + count }`)}
 
 // カッコが1つだけの場合、その部分のみをエスケープする
 // Give: <div>    ${count} </div>
-// Want: <div>    ${$$blveEscapeHtml(count)} </div>
+// Want: <div>    ${$$lunasEscapeHtml(count)} </div>
 // TODO: count_of_bindingsの返却をやめる
 fn replace_text_with_reactive_value(
     code: &mut String,
@@ -581,24 +581,24 @@ mod tests {
 
     #[test]
     fn exploration() {
-        let code = "$$blveEscapeHtml(count2.v+count.v)";
+        let code = "$$lunasEscapeHtml(count2.v+count.v)";
         let mut code = code.to_string();
         replace_text_with_reactive_value(
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
         );
-        assert_eq!(code, "$$blveEscapeHtml(count2.v+count.v)");
+        assert_eq!(code, "$$lunasEscapeHtml(count2.v+count.v)");
     }
 
     #[test]
     fn exploration2() {
-        let code = "$$blveEscapeHtml( count2.v + count.v )";
+        let code = "$$lunasEscapeHtml( count2.v + count.v )";
         let mut code = code.to_string();
         replace_text_with_reactive_value(
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
         );
-        assert_eq!(code, "$$blveEscapeHtml( count2.v + count.v )");
+        assert_eq!(code, "$$lunasEscapeHtml( count2.v + count.v )");
     }
 
     #[test]
@@ -608,13 +608,13 @@ mod tests {
         replace_text_with_reactive_value(&mut code, &vec!["interval".to_string()]);
         assert_eq!(
             code,
-            "${$$blveEscapeHtml(interval.v == null ? 'start' : 'clear')}"
+            "${$$lunasEscapeHtml(interval.v == null ? 'start' : 'clear')}"
         );
     }
 }
 
 fn escape_html(s: &str) -> String {
-    format!("$$blveEscapeHtml({})", s)
+    format!("$$lunasEscapeHtml({})", s)
 }
 
 fn find_reactive_attr_from_id<'a>(
