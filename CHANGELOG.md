@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.1-beta.6](https://github.com/lunas-dev/lunas/compare/0.0.1-beta.5...0.0.1-beta.6) (2024-7-28)
+
+### Other Changes
+
+- Changed the name of the project from `Blve` to `Lunas`. #46
+
 ## [0.0.1-beta.5](https://github.com/lunas-dev/lunas/compare/0.0.1-beta.4...0.0.1-beta.5) (2024-7-28)
 
 ### Features
