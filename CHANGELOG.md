@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.0.1-beta.5](https://github.com/blvedev/blve/compare/0.0.1-beta.4...0.0.1-beta.5) (2024-7-28)
+
+### Features
+
+- Added feature to pass variables to child components. #38
+- Added auto-routing feature. #43
+
+### Bug Fixes
+- Fixed the issue where top-level element attribute binding is not working. #35
+- Fixed the issue of not deleting variable dependencies of component when unmounting. #44
+
+### DevOps
+- Added compiler server for development. #40
+- Added automatic labels for issues. #41
+
 ## [0.0.1-beta.4](https://github.com/blvedev/blve/compare/0.0.1-beta.3...0.0.1-beta.4) (2024-6-7)
 
 ### Features
