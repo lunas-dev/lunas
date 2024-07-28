@@ -91,8 +91,9 @@ impl UuidGenerator {
     }
 }
 
+// FIXME: test env is no longer needed
 fn is_testgen() -> bool {
-    match env::var("BLVE_TEST") {
+    match env::var("LUNAS_TEST") {
         Ok(_) => true,
         Err(_) => false,
     }

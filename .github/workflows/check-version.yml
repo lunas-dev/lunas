@@ -37,7 +37,7 @@ jobs:
       - name: Create PR review on success
         if: ${{ success() }}
         run: |
-          CURRENT_VERSION=$(npm show blve@beta version)
+          CURRENT_VERSION=$(npm show lunas@beta version)
           NEW_VERSION=$(cat ./npm-pkgs/lunas/package.json | jq -r '.version')
           gh pr comment ${{ github.event.pull_request.number }} --body "The version in package.json '$NEW_VERSION' adheres to the beta version format.
           Current version in npm is '$CURRENT_VERSION'."

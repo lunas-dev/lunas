@@ -34,7 +34,7 @@ jobs:
       - name: Publish npm package
         run: |
           npm publish --tag beta
-        working-directory: ./npm-pkgs/blve
+        working-directory: ./npm-pkgs/lunas
   generate-tag:
     runs-on: ubuntu-latest
     steps:
