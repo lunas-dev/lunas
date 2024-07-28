@@ -54,7 +54,7 @@ pub fn generate_js_from_blocks(
 
     #[cfg(not(feature = "playground"))]
     {
-        imports.push("import { $$lunasRouter } from \"blve/dist/runtime/router\";".to_string());
+        imports.push("import { $$lunasRouter } from \"lunas/dist/runtime/router\";".to_string());
     }
 
     let using_auto_routing = blocks
@@ -83,7 +83,7 @@ pub fn generate_js_from_blocks(
     //     });
 
     let runtime_path = match runtime_path.is_none() {
-        true => "blve/dist/runtime".to_string(),
+        true => "lunas/dist/runtime".to_string(),
         false => runtime_path.unwrap(),
     };
 
