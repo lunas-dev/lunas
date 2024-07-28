@@ -17,12 +17,12 @@ tasks:
   build:
     cmds:
       - cd ./crates/lunas_compiler/ && wasm-pack build --target nodejs
-      - cp ./crates/lunas_compiler/pkg/*.js ./npm-pkgs/blve/src/wasm-compiler/
-      - cp ./crates/lunas_compiler/pkg/*.ts ./npm-pkgs/blve/src/wasm-compiler/
-      - cp ./crates/lunas_compiler/pkg/*.wasm ./npm-pkgs/blve/src/wasm-compiler/
-      - cd ./npm-pkgs/blve/src/wasm-compiler && npm run build
-      - mkdir -p ./npm-pkgs/blve/dist/wasm-compiler
-      - cp -r ./npm-pkgs/blve/src/wasm-compiler/* ./npm-pkgs/blve/dist/wasm-compiler/
+      - cp ./crates/lunas_compiler/pkg/*.js ./npm-pkgs/lunas/src/wasm-compiler/
+      - cp ./crates/lunas_compiler/pkg/*.ts ./npm-pkgs/lunas/src/wasm-compiler/
+      - cp ./crates/lunas_compiler/pkg/*.wasm ./npm-pkgs/lunas/src/wasm-compiler/
+      - cd ./npm-pkgs/lunas/src/wasm-compiler && npm run build
+      - mkdir -p ./npm-pkgs/lunas/dist/wasm-compiler
+      - cp -r ./npm-pkgs/lunas/src/wasm-compiler/* ./npm-pkgs/lunas/dist/wasm-compiler/
   build-web:
     cmds:
       - cd ./crates/lunas_compiler/ && wasm-pack build --target web
