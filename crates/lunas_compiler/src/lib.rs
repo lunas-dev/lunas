@@ -1,5 +1,5 @@
-use blve_generator::blve_compile_from_block;
 use blve_parser::parse_blve_file;
+use lunas_generator::blve_compile_from_block;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 

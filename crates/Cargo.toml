@@ -3,7 +3,7 @@
 # https://doc.rust-lang.org/cargo/reference/resolver.html#resolver-versions
 resolver = "2"
 members = [
-  "blve_generator",
+  "lunas_generator",
   "blve_parser",
   "lunas_compiler",
   "blve_html_parser",
