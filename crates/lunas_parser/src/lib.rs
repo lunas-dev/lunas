@@ -9,7 +9,7 @@ use parser1::parse1;
 pub use structs::detailed_blocks::DetailedBlock;
 pub use structs::detailed_meta_data::{DetailedMetaData, PropsInput, UseComponentStatement};
 
-pub fn parse_blve_file(input: &str) -> Result<DetailedBlock, String> {
+pub fn parse_lunas_file(input: &str) -> Result<DetailedBlock, String> {
     let parsed_items = match parse1(input) {
         Ok(r) => {
             let (_, parsed_items) = r;

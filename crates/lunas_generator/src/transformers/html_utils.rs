@@ -546,7 +546,7 @@ fn replace_text_with_reactive_value(
     (depending_vars, count_of_bindings)
 }
 
-pub fn create_blve_internal_component_statement(
+pub fn create_lunas_internal_component_statement(
     elm: &Element,
     generation_func_name: &str,
 ) -> String {

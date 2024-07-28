@@ -16,7 +16,7 @@ use crate::{
         transform_targets::{sort_elm_and_reactive_info, NodeAndReactiveInfo},
     },
     transformers::{
-        html_utils::{check_html_elms, create_blve_internal_component_statement},
+        html_utils::{check_html_elms, create_lunas_internal_component_statement},
         imports::generate_import_string,
         inputs::generate_input_variable_decl,
         js_utils::analyze_js,
@@ -146,7 +146,7 @@ pub fn generate_js_from_blocks(
     // Generate JavaScript
     let html_insert = format!(
         "{};",
-        create_blve_internal_component_statement(&new_elm, "$$lunasSetComponentElement")
+        create_lunas_internal_component_statement(&new_elm, "$$lunasSetComponentElement")
     );
     codes.push(html_insert);
     match props_assignment.is_some() {
@@ -241,7 +241,7 @@ fn gen_full_code(
         .collect::<Vec<String>>()
         .join("\n");
     format!(
-        r#"import {{ $$lunasAddEvListener, $$lunasEscapeHtml, $$lunasGetElmRefs, $$lunasInitComponent, $$lunasReplaceInnerHtml, $$lunasReplaceText, $$lunasReplaceAttr, $$lunasInsertEmpty, $$lunasInsertContent, $$createBlveElement, $$lunasCreateNonReactive }} from "{}";{}
+        r#"import {{ $$lunasAddEvListener, $$lunasEscapeHtml, $$lunasGetElmRefs, $$lunasInitComponent, $$lunasReplaceInnerHtml, $$lunasReplaceText, $$lunasReplaceAttr, $$lunasInsertEmpty, $$lunasInsertContent, $$createLunasElement, $$lunasCreateNonReactive }} from "{}";{}
 
 export default function(args = {{}}) {{
     const {{ $$lunasSetComponentElement, $$lunasUpdateComponent, $$lunasComponentReturn, $$lunasAfterMount, $$lunasReactive, $$lunasRenderIfBlock, $$lunasCreateIfBlock }} = new $$lunasInitComponent(args{});

@@ -1,17 +1,17 @@
-use lunas_generator::blve_compile_from_block;
-use lunas_parser::parse_blve_file;
+use lunas_generator::lunas_compile_from_block;
+use lunas_parser::parse_lunas_file;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Debug)]
-pub struct BlveCompilerOutput {
+pub struct LunasCompilerOutput {
     js: String,
     css: Option<String>,
 }
 
 #[wasm_bindgen]
-impl BlveCompilerOutput {
+impl LunasCompilerOutput {
     #[wasm_bindgen(getter)]
     pub fn js(&self) -> String {
         self.js.clone()
@@ -27,15 +27,15 @@ impl BlveCompilerOutput {
 
 #[wasm_bindgen]
 pub fn compile(
-    blve_code: String,
+    lunas_code: String,
     runtime_path: Option<String>,
-) -> Result<BlveCompilerOutput, String> {
-    let blocks = match parse_blve_file(&blve_code) {
+) -> Result<LunasCompilerOutput, String> {
+    let blocks = match parse_lunas_file(&lunas_code) {
         Ok(r) => Ok(r),
         Err(e) => Err(e.to_string()),
     }?;
-    let code = blve_compile_from_block(&blocks, runtime_path)?;
-    Ok(BlveCompilerOutput {
+    let code = lunas_compile_from_block(&blocks, runtime_path)?;
+    Ok(LunasCompilerOutput {
         js: code.0,
         css: code.1,
     })

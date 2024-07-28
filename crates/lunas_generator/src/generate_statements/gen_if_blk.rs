@@ -7,7 +7,7 @@ use crate::{
     structs::transform_info::{
         ActionAndTarget, CustomComponentBlockInfo, IfBlockInfo, NeededIdName, TextNodeRendererGroup,
     },
-    transformers::html_utils::create_blve_internal_component_statement,
+    transformers::html_utils::create_lunas_internal_component_statement,
 };
 
 use super::utils::create_indent;
@@ -27,7 +27,7 @@ pub fn gen_render_if_blk_func(
         // create element
         let create_internal_element_statement = match &if_block.node.content {
             NodeContent::Element(elm) => {
-                create_blve_internal_component_statement(elm, "$$createBlveElement")
+                create_lunas_internal_component_statement(elm, "$$createLunasElement")
             }
             _ => panic!(),
         };
