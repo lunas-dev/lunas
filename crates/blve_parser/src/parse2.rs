@@ -8,7 +8,7 @@ use crate::structs::detailed_language_blocks::{DetailedLanguageBlocks, JsBlock};
 use crate::structs::detailed_meta_data::DetailedMetaData;
 use crate::swc_parser::parse_with_swc;
 
-use blve_html_parser::Dom;
+use lunas_html_parser::Dom;
 
 pub fn parse2<'a>(input: Vec<ParsedItem>) -> Result<DetailedBlock, &'a str> {
     let variant_a_values: Vec<LanguageBlock> = input

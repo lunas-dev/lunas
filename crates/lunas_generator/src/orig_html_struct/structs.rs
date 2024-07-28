@@ -1,4 +1,4 @@
-use blve_html_parser::{Dom as RawDom, Element as RawElm, Node as RawNode};
+use lunas_html_parser::{Dom as RawDom, Element as RawElm, Node as RawNode};
 use std::collections::HashMap;
 
 use crate::transformers::utils::UUID_GENERATOR;
@@ -162,7 +162,7 @@ mod tests {
     #[test]
     fn test_node_to_string() {
         let raw_html = "<div><p>hello</p></div>";
-        let raw_node = blve_html_parser::Dom::parse(raw_html).unwrap();
+        let raw_node = lunas_html_parser::Dom::parse(raw_html).unwrap();
         let el = raw_node.children[0].clone();
         let node = crate::orig_html_struct::structs::Node::new_from_node(&el);
         assert_eq!(node.to_string(), raw_html);

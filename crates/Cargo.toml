@@ -6,6 +6,6 @@ members = [
   "lunas_generator",
   "blve_parser",
   "lunas_compiler",
-  "blve_html_parser",
+  "lunas_html_parser",
   "lunas_dev_server",
 ]

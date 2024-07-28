@@ -1,10 +1,10 @@
 use clap::Parser;
+use lunas_html_parser::{Dom, Result};
 use std::{
     fs::File,
     io::{self, Read},
     path::PathBuf,
 };
-use blve_html_parser::{Dom, Result};
 
 #[derive(Debug, Parser)]
 /// A simple and general purpose html/xhtml parser.
