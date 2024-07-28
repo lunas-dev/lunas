@@ -20,6 +20,7 @@ export type BlveComponentState = {
   isMounted: boolean;
   componentElm: HTMLElement;
   compSymbol: symbol;
+  resetDependecies: (() => void)[];
   // componentElmentSetter: (innerHtml: string, topElmTag: string,topElmAttr: {[key: string]: string}) => void
   __blve_update: () => void;
   __blve_after_mount: () => void;
@@ -71,6 +72,11 @@ class valueObj<T> {
 
   addDependency(componentObj: BlveComponentState, symbolIndex: number) {
     this.dependencies[componentObj.compSymbol] = [componentObj, symbolIndex];
+    return {
+      removeDependency: () => {
+        delete this.dependencies[componentObj.compSymbol];
+      },
+    };
   }
 }
 
@@ -88,6 +94,7 @@ export const $$blveInitComponent = function (
   this.isMounted = false;
   this.ifBlkRenderers = {};
   this.compSymbol = Symbol();
+  this.resetDependecies = [];
 
   const genBitOfVariables = function* (this: BlveComponentState) {
     while (true) {
@@ -104,7 +111,11 @@ export const $$blveInitComponent = function (
   for (const key of inputs) {
     const arg = args[key];
     if (arg instanceof valueObj) {
-      arg.addDependency(this, genBitOfVariables().next().value);
+      const { removeDependency } = arg.addDependency(
+        this,
+        genBitOfVariables().next().value
+      );
+      this.resetDependecies.push(removeDependency);
     } else {
       genBitOfVariables().next();
     }
@@ -177,6 +188,7 @@ export const $$blveInitComponent = function (
     if (!this.isMounted) throw new Error("Component is not mounted");
     this.componentElm!.remove();
     this.isMounted = false;
+    this.resetDependecies.forEach((r) => r());
   }.bind(this);
 
   const updateComponent = function (
@@ -326,6 +338,9 @@ export const createDomElementFromBlveElement = function (
   return componentElm;
 };
 
-export const $$blveCreateNonReactive = function <T>(this: BlveComponentState, v: T) {
+export const $$blveCreateNonReactive = function <T>(
+  this: BlveComponentState,
+  v: T
+) {
   return new valueObj<T>(v);
 };

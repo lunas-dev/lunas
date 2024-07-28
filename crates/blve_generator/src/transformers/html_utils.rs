@@ -191,7 +191,6 @@ pub fn check_html_elms(
                             component_name: element.tag_name.clone(),
                             attributes: element.attributes_without_meta(),
                             child_uuid: node.uuid.clone(),
-                            block_id: node.uuid.clone(),
                             ctx: ctx_array.clone(),
                             elm_loc: element_location.clone(),
                         },
@@ -351,20 +350,14 @@ pub fn check_html_elms(
                             } else {
                                 None
                             };
-                            let ref_text_node_id = match distance != 1 {
-                                true => Some(nanoid!()),
-                                false => None,
-                            };
 
                             custom_component_blocks_info.push(CustomComponentBlockInfo {
                                 parent_id: node_id.clone(),
-                                target_if_blk_id: remove_statement.child_uuid.clone(),
                                 distance_to_next_elm: distance,
                                 have_sibling_elm: count_of_siblings > 1,
                                 target_anchor_id,
                                 component_name: remove_statement.component_name.clone(),
                                 args: ComponentArgs::new(&remove_statement.attributes),
-                                ref_text_node_id,
                                 ctx: remove_statement.ctx.clone(),
                                 custom_component_block_id: UUID_GENERATOR.lock().unwrap().gen(),
                                 element_location: remove_statement.elm_loc.clone(),
@@ -393,7 +386,7 @@ pub fn check_html_elms(
                                 &remove_text_node.ctx,
                             );
 
-                            let (_, _, distance, idx_of_ref) =
+                            let (_, _, _, idx_of_ref) =
                                 element.remove_child(&remove_text_node.child_uuid, component_names);
                             // TODO:remove_childにまとめる
                             let target_anchor_id = if let Some(idx_of_ref) = idx_of_ref {
@@ -416,8 +409,6 @@ pub fn check_html_elms(
                             txt_node_renderer.push(ManualRendererForTextNode {
                                 parent_id: node_id.clone(),
                                 text_node_id: remove_text_node.child_uuid.clone(),
-                                distance_to_next_elm: distance,
-                                dep_vars: remove_text_node.depenent_vars.clone(),
                                 content: remove_text_node.content.clone(),
                                 ctx: remove_text_node.ctx.clone(),
                                 element_location: remove_text_node.elm_loc.clone(),
@@ -591,7 +582,7 @@ mod tests {
     #[test]
     fn exploration() {
         let code = "$$blveEscapeHtml(count2.v+count.v)";
-        let mut code = code.clone().to_string();
+        let mut code = code.to_string();
         replace_text_with_reactive_value(
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
@@ -602,7 +593,7 @@ mod tests {
     #[test]
     fn exploration2() {
         let code = "$$blveEscapeHtml( count2.v + count.v )";
-        let mut code = code.clone().to_string();
+        let mut code = code.to_string();
         replace_text_with_reactive_value(
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
@@ -613,7 +604,7 @@ mod tests {
     #[test]
     fn exploration3() {
         let code = "${interval==null?'start':'clear'}";
-        let mut code = code.clone().to_string();
+        let mut code = code.to_string();
         replace_text_with_reactive_value(&mut code, &vec!["interval".to_string()]);
         assert_eq!(
             code,
