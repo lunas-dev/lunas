@@ -1,4 +1,4 @@
-use blve_parser::{DetailedBlock, DetailedMetaData, PropsInput, UseComponentStatement};
+use lunas_parser::{DetailedBlock, DetailedMetaData, PropsInput, UseComponentStatement};
 use std::collections::HashSet;
 
 use crate::{

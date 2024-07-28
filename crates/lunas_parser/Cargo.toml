@@ -1,5 +1,5 @@
 [package]
-name = "blve_parser"
+name = "lunas_parser"
 version = "0.1.0"
 edition = "2021"
 

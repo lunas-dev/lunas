@@ -1,4 +1,4 @@
-use blve_parser::PropsInput;
+use lunas_parser::PropsInput;
 
 use crate::structs::transform_info::VariableNameAndAssignedNumber;
 

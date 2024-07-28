@@ -4,7 +4,7 @@ mod generate_statements;
 mod orig_html_struct;
 mod structs;
 mod transformers;
-use blve_parser::DetailedBlock;
+use lunas_parser::DetailedBlock;
 use generate_js::generate_js_from_blocks;
 #[macro_use]
 extern crate lazy_static;
