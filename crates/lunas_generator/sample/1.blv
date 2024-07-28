@@ -1,6 +1,6 @@
 html:
   <div>
-    <h1>Hello Blve!</h1>
+    <h1>Hello Lunas!</h1>
     <button @click="increment">${count}</button>
   </div>
 script:

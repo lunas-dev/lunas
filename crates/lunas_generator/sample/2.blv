@@ -1,5 +1,5 @@
 html:
-  <h1 id='abc'>Hello Blve!</h1>
+  <h1 id='abc'>Hello Lunas!</h1>
   <input :value="count"></input>
   <div>${count}</div>
 script:
