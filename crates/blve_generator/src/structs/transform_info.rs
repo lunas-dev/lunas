@@ -1,9 +1,15 @@
-use crate::{orig_html_struct::structs::Node, transformers::utils::append_v_to_vars_in_html};
+use std::collections::HashMap;
+
+use crate::{
+    orig_html_struct::structs::Node,
+    transformers::utils::{append_v_to_vars_in_html, convert_non_reactive_to_obj},
+};
 
 #[derive(Debug, Clone)]
 pub enum TransformInfo {
     AddStringToPosition(AddStringToPosition),
     RemoveStatement(RemoveStatement),
+    ReplaceText(ReplaceText),
 }
 
 #[derive(Debug, Clone)]
@@ -16,6 +22,13 @@ pub struct AddStringToPosition {
 pub struct RemoveStatement {
     pub start_position: u32,
     pub end_position: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReplaceText {
+    pub start_position: u32,
+    pub end_position: u32,
+    pub string: String,
 }
 
 #[derive(Debug)]
@@ -59,6 +72,7 @@ impl ToString for EventTarget {
         match self {
             EventTarget::RefToFunction(function_name) => function_name.clone(),
             EventTarget::Statement(statement) => format!("()=>{}", statement),
+            // TODO: (P3) Check if "EventBindingStatement" is used
             EventTarget::EventBindingStatement(statement) => {
                 format!("({})=>{}", statement.arg, statement.statement)
             }
@@ -68,10 +82,8 @@ impl ToString for EventTarget {
 
 impl EventTarget {
     pub fn new(content: String, variables: &Vec<String>) -> Self {
-        // FIXME: This is a hacky way to check if the content is a statement or a function
-        if content.trim().ends_with(")") {
-            EventTarget::Statement(content)
-        } else if word_is_one_word(content.as_str()) {
+        // FIXME: (P1) This is a hacky way to check if the content is a statement or a function
+        if word_is_one_word(content.as_str()) {
             EventTarget::RefToFunction(content)
         } else {
             EventTarget::Statement(append_v_to_vars_in_html(content.as_str(), &variables).0)
@@ -134,23 +146,81 @@ pub fn sort_if_blocks(if_blocks: &mut Vec<IfBlockInfo>) {
 #[derive(Debug, Clone)]
 pub struct CustomComponentBlockInfo {
     pub parent_id: String,
-    pub target_if_blk_id: String,
     pub distance_to_next_elm: u64,
     pub have_sibling_elm: bool,
     pub target_anchor_id: Option<String>,
     pub component_name: String,
-    pub ref_text_node_id: Option<String>,
     pub ctx: Vec<String>,
     pub custom_component_block_id: String,
     pub element_location: Vec<usize>,
+    pub is_routing_component: bool,
+    pub args: ComponentArgs,
+}
+
+#[derive(Debug, Clone)]
+pub struct ComponentArg {
+    pub name: String,
+    pub value: Option<String>,
+    pub bind: bool,
+}
+
+impl ComponentArg {
+    fn to_string(&self, variable_names: &Vec<String>) -> String {
+        if self.bind {
+            // TODO: delete unwrap and add support for boolean attributes
+            let value_converted_to_obj =
+                convert_non_reactive_to_obj(&self.value.clone().unwrap().as_str(), variable_names);
+            format!("\"{}\": {}", self.name, value_converted_to_obj)
+        } else {
+            format!(
+                "\"{}\": $$blveCreateNonReactive(\"{}\")",
+                self.name,
+                self.value.clone().unwrap()
+            )
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ComponentArgs {
+    pub args: Vec<ComponentArg>,
+}
+
+impl ComponentArgs {
+    /* pub attributes: HashMap<String, Option<String>>, */
+    pub fn new(attr: &HashMap<String, Option<String>>) -> Self {
+        let mut args: Vec<ComponentArg> = vec![];
+        for (key, value) in attr {
+            let bind = key.starts_with(":");
+            let key = key.trim_start_matches(":").to_string();
+            // TODO: add support for boolean attributes
+            args.push(ComponentArg {
+                name: key,
+                value: value.clone(),
+                bind,
+            });
+        }
+
+        ComponentArgs { args }
+    }
+
+    pub fn to_object(&self, variable_names: &Vec<String>) -> String {
+        let obj_value = {
+            let mut args_str: Vec<String> = vec![];
+            for arg in &self.args {
+                args_str.push(arg.to_string(variable_names));
+            }
+
+            args_str.join(", ")
+        };
+        format!("{{{}}}", obj_value)
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct ManualRendererForTextNode {
     pub parent_id: String,
     pub text_node_id: String,
-    pub distance_to_next_elm: u64,
-    pub dep_vars: Vec<String>,
     pub content: String,
     pub ctx: Vec<String>,
     pub element_location: Vec<usize>,

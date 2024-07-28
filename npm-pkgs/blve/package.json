@@ -1,6 +1,6 @@
 {
   "name": "blve",
-  "version": "0.0.1-beta.4",
+  "version": "0.0.1-beta.5",
   "description": "Blve - Ultrafast and Sophisticated Web Frontend Framework",
   "main": "dist/index.js",
   "scripts": {

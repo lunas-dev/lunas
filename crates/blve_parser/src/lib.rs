@@ -1,13 +1,13 @@
 mod parse2;
 mod parser1;
 mod parsers;
-mod structs;
+pub mod structs;
 mod swc_parser;
 
 use parse2::parse2;
 use parser1::parse1;
 pub use structs::detailed_blocks::DetailedBlock;
-pub use structs::detailed_meta_data::{DetailedMetaData, UseComponentStatement};
+pub use structs::detailed_meta_data::{DetailedMetaData, PropsInput, UseComponentStatement};
 
 pub fn parse_blve_file(input: &str) -> Result<DetailedBlock, String> {
     let parsed_items = match parse1(input) {
@@ -22,6 +22,8 @@ pub fn parse_blve_file(input: &str) -> Result<DetailedBlock, String> {
         Ok(r) => r,
         Err(e) => return Err(format!("{:?}", e)),
     };
+
+    println!("{:?}", detailed_block.detailed_meta_data);
 
     Ok(detailed_block)
 }

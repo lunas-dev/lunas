@@ -2,18 +2,13 @@ use crate::parsers::utils::{empty_lines, parse_language_name};
 use crate::structs::blocks::{LanguageBlock, ParsedItem};
 extern crate nom;
 
-
 use nom::bytes::complete::take_while;
-use nom::character::complete::{line_ending};
+use nom::character::complete::line_ending;
 use nom::combinator::{not, opt, peek};
 use nom::multi::many_till;
 
 use nom::{
-    branch::alt,
-    bytes::complete::tag,
-    character::complete::{multispace0},
-    sequence::tuple,
-    IResult,
+    branch::alt, bytes::complete::tag, character::complete::multispace0, sequence::tuple, IResult,
 };
 
 pub fn parse_language_block(input: &str) -> IResult<&str, ParsedItem> {

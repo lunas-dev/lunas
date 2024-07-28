@@ -1,6 +1,7 @@
 use nanoid::nanoid;
 
 use crate::{
+    consts::ROUTER_COMPONENTS,
     orig_html_struct::{
         html_manipulation::{
             HtmlManipulation, HtmlManipulator, RemoveChildForCustomComponent,
@@ -10,8 +11,8 @@ use crate::{
     },
     structs::{
         transform_info::{
-            ActionAndTarget, CustomComponentBlockInfo, EventBindingStatement, EventTarget,
-            IfBlockInfo, ManualRendererForTextNode, NeededIdName,
+            ActionAndTarget, ComponentArgs, CustomComponentBlockInfo, EventBindingStatement,
+            EventTarget, IfBlockInfo, ManualRendererForTextNode, NeededIdName,
         },
         transform_targets::{
             ElmAndReactiveAttributeRelation, ElmAndVariableContentRelation, NodeAndReactiveInfo,
@@ -47,142 +48,149 @@ pub fn check_html_elms(
     match &mut node.content {
         NodeContent::Element(element) => {
             let mut ctx_array = if_blk_ctx.clone();
-            for (key, action_value) in &element.attributes.clone() {
-                // if attrs.name starts with "@"
-                if key.starts_with("@") {
-                    let action_name = &key[1..];
-                    set_id_for_needed_elm(element, needed_ids, &node_id, &ctx_array);
-                    if let Some(value) = &&action_value {
-                        actions_and_targets.push(ActionAndTarget {
-                            action_name: action_name.to_string(),
-                            action: EventTarget::new(value.to_string(), varibale_names),
-                            target: node_id.clone(),
-                            ctx: ctx_array.clone(),
-                        })
-                    }
-                    element.attributes.remove(key);
-                } else if key == ":if" {
-                    // TODO: Add error message for unwrap below
-                    let condition = action_value.clone().unwrap();
-                    let ctx_under_if = {
-                        let mut ctx = ctx_array.clone();
-                        ctx.push(node.uuid.clone());
-                        ctx
-                    };
-                    html_manipulators.push(HtmlManipulator {
-                        target_uuid: parent_uuid.unwrap().clone(),
-                        manipulations: HtmlManipulation::RemoveChildForIfStatement(
-                            RemoveChildForIfStatement {
-                                child_uuid: node.uuid.clone(),
-                                condition: condition.clone(),
-                                block_id: node_id.clone(),
-                                ctx_over_if: ctx_array.clone(),
-                                ctx_under_if,
-                                elm_loc: element_location.clone(),
-                            },
-                        ),
-                    });
-                    element.attributes.remove(key);
-                    element
-                        .attributes
-                        .insert("$$$conditional$$$".to_string(), None);
-                    ctx_array.push(node.uuid.clone());
-                } else if key.starts_with("::") {
-                    let binding_attr = &key[2..];
-                    set_id_for_needed_elm(element, needed_ids, &node_id, &ctx_array);
-                    if let Some(value) = &&action_value {
-                        actions_and_targets.push(ActionAndTarget {
-                            action_name: "input".to_string(),
-                            action: EventTarget::EventBindingStatement(EventBindingStatement {
-                                statement: format!("{}.v = event.target.{}", &value, &binding_attr),
-                                arg: "e".to_string(),
-                            }),
-                            target: node_id.clone(),
-                            ctx: ctx_array.clone(),
-                        });
-                        elm_and_var_relation.push(
-                            NodeAndReactiveInfo::ElmAndReactiveAttributeRelation(
-                                ElmAndReactiveAttributeRelation {
-                                    elm_id: node_id.clone(),
-                                    reactive_attr: vec![ReactiveAttr {
-                                        attribute_key: binding_attr.to_string(),
-                                        content_of_attr: format!("{}.v", value),
-                                        variable_names: vec![value.clone()],
-                                    }],
-                                    ctx: ctx_array.clone(),
+            if !component_names.contains(&element.tag_name) {
+                for (key, action_value) in &element.attributes.clone() {
+                    // if attrs.name starts with "@"
+                    if key.starts_with("@") {
+                        let action_name = &key[1..];
+                        set_id_for_needed_elm(element, needed_ids, &node_id, &ctx_array);
+                        if let Some(value) = &&action_value {
+                            actions_and_targets.push(ActionAndTarget {
+                                action_name: action_name.to_string(),
+                                action: EventTarget::new(value.to_string(), varibale_names),
+                                target: node_id.clone(),
+                                ctx: ctx_array.clone(),
+                            })
+                        }
+                        element.attributes.remove(key);
+                    } else if key == ":if" {
+                        // TODO: Add error message for unwrap below
+                        let condition = action_value.clone().unwrap();
+                        let ctx_under_if = {
+                            let mut ctx = ctx_array.clone();
+                            ctx.push(node.uuid.clone());
+                            ctx
+                        };
+                        html_manipulators.push(HtmlManipulator {
+                            target_uuid: parent_uuid.unwrap().clone(),
+                            manipulations: HtmlManipulation::RemoveChildForIfStatement(
+                                RemoveChildForIfStatement {
+                                    child_uuid: node.uuid.clone(),
+                                    condition: condition.clone(),
+                                    block_id: node_id.clone(),
+                                    ctx_over_if: ctx_array.clone(),
+                                    ctx_under_if,
                                     elm_loc: element_location.clone(),
                                 },
                             ),
-                        );
-                    }
-                    element.attributes.remove(key);
-                } else if key.starts_with(":") {
-                    // TODO: reconsider about this constraint
-                    if key == ":innerHtml" {
-                        Err(format!(":innerHtml is not supported"))?;
-                    } else if key == ":textContent" {
-                        Err(format!(":textContent is not supported"))?;
-                    }
-                    let id: String =
+                        });
+                        element.attributes.remove(key);
+                        element
+                            .attributes
+                            .insert("$$$conditional$$$".to_string(), None);
+                        ctx_array.push(node.uuid.clone());
+                    } else if key.starts_with("::") {
+                        let binding_attr = &key[2..];
                         set_id_for_needed_elm(element, needed_ids, &node_id, &ctx_array);
-                    let raw_attr_name = &key[1..];
-                    let raw_attr_value = action_value.clone();
-
-                    let reactive_attr_info = find_reactive_attr_from_id(&id, elm_and_var_relation);
-
-                    // if elm_and_var_relation includes elm_id
-
-                    let reactive_attr_info = match reactive_attr_info {
-                        Some(rel) => rel,
-                        None => {
-                            let rel2 = ElmAndReactiveAttributeRelation {
-                                elm_id: node_id.clone(),
-                                reactive_attr: vec![],
+                        if let Some(value) = &&action_value {
+                            actions_and_targets.push(ActionAndTarget {
+                                action_name: "input".to_string(),
+                                action: EventTarget::EventBindingStatement(EventBindingStatement {
+                                    statement: format!(
+                                        "{}.v = event.target.{}",
+                                        &value, &binding_attr
+                                    ),
+                                    arg: "e".to_string(),
+                                }),
+                                target: node_id.clone(),
                                 ctx: ctx_array.clone(),
-                                elm_loc: element_location.clone(),
-                            };
-                            elm_and_var_relation
-                                .push(NodeAndReactiveInfo::ElmAndReactiveAttributeRelation(rel2));
-                            find_reactive_attr_from_id(&node_id, elm_and_var_relation).unwrap()
+                            });
+                            elm_and_var_relation.push(
+                                NodeAndReactiveInfo::ElmAndReactiveAttributeRelation(
+                                    ElmAndReactiveAttributeRelation {
+                                        elm_id: node_id.clone(),
+                                        reactive_attr: vec![ReactiveAttr {
+                                            attribute_key: binding_attr.to_string(),
+                                            content_of_attr: format!("{}.v", value),
+                                            variable_names: vec![value.clone()],
+                                        }],
+                                        ctx: ctx_array.clone(),
+                                        elm_loc: element_location.clone(),
+                                    },
+                                ),
+                            );
                         }
-                    };
+                        element.attributes.remove(key);
+                    } else if key.starts_with(":") {
+                        // TODO: reconsider about this constraint
+                        if key == ":innerHtml" {
+                            Err(format!(":innerHtml is not supported"))?;
+                        } else if key == ":textContent" {
+                            Err(format!(":textContent is not supported"))?;
+                        }
+                        let id: String =
+                            set_id_for_needed_elm(element, needed_ids, &node_id, &ctx_array);
+                        let raw_attr_name = &key[1..];
+                        let raw_attr_value = action_value.clone();
 
-                    // Check if the value is null
-                    // TODO:要素のIndexを返すようにする
-                    if raw_attr_value.is_none() {
-                        Err(format!("value of attribute :{} is null", raw_attr_name))?;
+                        let reactive_attr_info =
+                            find_reactive_attr_from_id(&id, elm_and_var_relation);
+
+                        // if elm_and_var_relation includes elm_id
+
+                        let reactive_attr_info = match reactive_attr_info {
+                            Some(rel) => rel,
+                            None => {
+                                let rel2 = ElmAndReactiveAttributeRelation {
+                                    elm_id: node_id.clone(),
+                                    reactive_attr: vec![],
+                                    ctx: ctx_array.clone(),
+                                    elm_loc: element_location.clone(),
+                                };
+                                elm_and_var_relation.push(
+                                    NodeAndReactiveInfo::ElmAndReactiveAttributeRelation(rel2),
+                                );
+                                find_reactive_attr_from_id(&node_id, elm_and_var_relation).unwrap()
+                            }
+                        };
+
+                        // Check if the value is null
+                        // TODO:要素のIndexを返すようにする
+                        if raw_attr_value.is_none() {
+                            Err(format!("value of attribute :{} is null", raw_attr_name))?;
+                        }
+
+                        let mut raw_attr_value = raw_attr_value.unwrap();
+
+                        let (raw_attr_value, used_vars) =
+                            append_v_to_vars_in_html(&mut raw_attr_value, varibale_names);
+
+                        element.attributes.remove(key);
+                        element.attributes.insert(
+                            raw_attr_name.to_string(),
+                            Some(format!("${{{}}}", raw_attr_value)),
+                        );
+
+                        let reactive_attr = ReactiveAttr {
+                            attribute_key: raw_attr_name.to_string(),
+                            content_of_attr: raw_attr_value,
+                            variable_names: used_vars,
+                        };
+
+                        reactive_attr_info.reactive_attr.push(reactive_attr);
                     }
-
-                    let mut raw_attr_value = raw_attr_value.unwrap();
-
-                    let (raw_attr_value, used_vars) =
-                        append_v_to_vars_in_html(&mut raw_attr_value, varibale_names);
-
-                    element.attributes.remove(key);
-                    element.attributes.insert(
-                        raw_attr_name.to_string(),
-                        Some(format!("${{{}}}", raw_attr_value)),
-                    );
-
-                    let reactive_attr = ReactiveAttr {
-                        attribute_key: raw_attr_name.to_string(),
-                        content_of_attr: raw_attr_value,
-                        variable_names: used_vars,
-                    };
-
-                    reactive_attr_info.reactive_attr.push(reactive_attr);
                 }
-            }
 
-            // When the tag_name corresponds to the component_names
-            if component_names.contains(&element.tag_name) {
+                // When the tag_name corresponds to the component_names
+            } else {
                 html_manipulators.push(HtmlManipulator {
+                    // TODO: add error message for unwrap below
                     target_uuid: parent_uuid.unwrap().clone(),
                     manipulations: HtmlManipulation::RemoveChildForCustomComponent(
                         RemoveChildForCustomComponent {
                             component_name: element.tag_name.clone(),
+                            attributes: element.attributes_without_meta(),
                             child_uuid: node.uuid.clone(),
-                            block_id: node.uuid.clone(),
                             ctx: ctx_array.clone(),
                             elm_loc: element_location.clone(),
                         },
@@ -342,22 +350,20 @@ pub fn check_html_elms(
                             } else {
                                 None
                             };
-                            let ref_text_node_id = match distance != 1 {
-                                true => Some(nanoid!()),
-                                false => None,
-                            };
 
                             custom_component_blocks_info.push(CustomComponentBlockInfo {
                                 parent_id: node_id.clone(),
-                                target_if_blk_id: remove_statement.child_uuid.clone(),
                                 distance_to_next_elm: distance,
                                 have_sibling_elm: count_of_siblings > 1,
                                 target_anchor_id,
                                 component_name: remove_statement.component_name.clone(),
-                                ref_text_node_id,
+                                args: ComponentArgs::new(&remove_statement.attributes),
                                 ctx: remove_statement.ctx.clone(),
                                 custom_component_block_id: UUID_GENERATOR.lock().unwrap().gen(),
                                 element_location: remove_statement.elm_loc.clone(),
+                                is_routing_component: ROUTER_COMPONENTS
+                                    .into_iter()
+                                    .any(|x| x == remove_statement.component_name),
                             });
                         }
                         HtmlManipulation::SetIdForReactiveContent(set_id) => {
@@ -380,7 +386,7 @@ pub fn check_html_elms(
                                 &remove_text_node.ctx,
                             );
 
-                            let (_, _, distance, idx_of_ref) =
+                            let (_, _, _, idx_of_ref) =
                                 element.remove_child(&remove_text_node.child_uuid, component_names);
                             // TODO:remove_childにまとめる
                             let target_anchor_id = if let Some(idx_of_ref) = idx_of_ref {
@@ -403,8 +409,6 @@ pub fn check_html_elms(
                             txt_node_renderer.push(ManualRendererForTextNode {
                                 parent_id: node_id.clone(),
                                 text_node_id: remove_text_node.child_uuid.clone(),
-                                distance_to_next_elm: distance,
-                                dep_vars: remove_text_node.depenent_vars.clone(),
                                 content: remove_text_node.content.clone(),
                                 ctx: remove_text_node.ctx.clone(),
                                 element_location: remove_text_node.elm_loc.clone(),
@@ -559,7 +563,7 @@ pub fn create_blve_internal_component_statement(
         code.push_str(", {");
         for (key, value) in attrs.iter() {
             let js_value = match value {
-                Some(value) => format!("\"{}\"", value),
+                Some(value) => format!("`{}`", value),
                 None => "null".to_string(),
             };
             code.push_str(&format!("\"{}\": {},", key, js_value));
@@ -578,7 +582,7 @@ mod tests {
     #[test]
     fn exploration() {
         let code = "$$blveEscapeHtml(count2.v+count.v)";
-        let mut code = code.clone().to_string();
+        let mut code = code.to_string();
         replace_text_with_reactive_value(
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
@@ -589,7 +593,7 @@ mod tests {
     #[test]
     fn exploration2() {
         let code = "$$blveEscapeHtml( count2.v + count.v )";
-        let mut code = code.clone().to_string();
+        let mut code = code.to_string();
         replace_text_with_reactive_value(
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
@@ -600,7 +604,7 @@ mod tests {
     #[test]
     fn exploration3() {
         let code = "${interval==null?'start':'clear'}";
-        let mut code = code.clone().to_string();
+        let mut code = code.to_string();
         replace_text_with_reactive_value(&mut code, &vec!["interval".to_string()]);
         assert_eq!(
             code,

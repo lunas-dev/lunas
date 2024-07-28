@@ -4,51 +4,53 @@ use blve_parser::DetailedBlock;
 use serde_json::{Map, Value};
 
 use crate::structs::transform_info::{
-    AddStringToPosition, RemoveStatement, TransformInfo, VariableNameAndAssignedNumber,
+    AddStringToPosition, RemoveStatement, ReplaceText, TransformInfo, VariableNameAndAssignedNumber,
 };
 
 use super::utils::add_or_remove_strings_to_script;
 
 pub fn analyze_js(
     blocks: &DetailedBlock,
-) -> (
-    Vec<VariableNameAndAssignedNumber>,
-    Vec<String>,
-    Vec<String>,
-    String,
-) {
+    initial_num: u32,
+    variables: &mut Vec<VariableNameAndAssignedNumber>,
+) -> (Vec<String>, Vec<String>, String) {
     if let Some(js_block) = &blocks.detailed_language_blocks.js {
         let mut positions = vec![];
         let mut imports = vec![];
         // find all variable declarations
-        let (variables, str_positions) = find_variable_declarations(&js_block.ast);
+        let str_positions = find_variable_declarations(&js_block.ast, initial_num, variables);
         // add all variable declarations to positions to add custom variable declaration function
         positions.extend(str_positions);
         let variable_names = variables.iter().map(|v| v.name.clone()).collect();
-        let (position_result, import_result) = search_json(
+        let (position_result, import_result, _) = search_json(
             &js_block.ast,
             &js_block.raw,
             &variable_names,
-            &imports,
+            Some(&imports),
             None,
         );
         positions.extend(position_result);
         imports.extend(import_result);
         let output = add_or_remove_strings_to_script(positions, &js_block.raw);
-        (variables, variable_names, imports, output)
+        (variable_names, imports, output)
     } else {
-        (vec![], vec![], vec![], "".to_string())
+        let variable_names = variables
+            .iter()
+            .map(|v| v.name.clone())
+            .collect::<Vec<String>>();
+        (variable_names, vec![], "".to_string())
     }
 }
 
 // Finds all variable declarations in a javascript file and returns a vector of VariableNameAndAssignedNumber structs
 fn find_variable_declarations(
     json: &Value,
-) -> (Vec<VariableNameAndAssignedNumber>, vec::Vec<TransformInfo>) {
+    initial_num: u32,
+    variables: &mut Vec<VariableNameAndAssignedNumber>,
+) -> vec::Vec<TransformInfo> {
     if let Some(Value::Array(body)) = json.get("body") {
-        let mut variables = vec![];
         let mut str_positions = vec![];
-        let mut num_generator = power_of_two_generator();
+        let mut num_generator = power_of_two_generator(initial_num);
         for body_item in body {
             if Some(&Value::String("VariableDeclaration".to_string())) == body_item.get("type") {
                 if let Some(Value::Array(declarations)) = body_item.get("declarations") {
@@ -106,28 +108,30 @@ fn find_variable_declarations(
                 }
             }
         }
-        (variables, str_positions)
+        str_positions
     } else {
-        (vec![], vec![])
+        vec![]
     }
 }
 
-fn power_of_two_generator() -> impl FnMut() -> u32 {
-    let mut count = 0;
-    move || {
+fn power_of_two_generator(init: u32) -> impl FnMut() -> u32 {
+    let mut count = init;
+    move || -> u32 {
         let result = 2u32.pow(count);
         count += 1;
         result
     }
 }
 
+// TODO: (P5) Use mutable references for the arguments instead of returning them
 pub fn search_json(
     json: &Value,
     raw_js: &String,
     variables: &Vec<String>,
-    imports: &Vec<String>,
+    // FIXME: imports are unused
+    imports: Option<&Vec<String>>,
     parent: Option<&Map<String, Value>>,
-) -> (vec::Vec<TransformInfo>, vec::Vec<String>) {
+) -> (vec::Vec<TransformInfo>, vec::Vec<String>, vec::Vec<String>) {
     if let Value::Object(obj) = json {
         if obj.contains_key("type") && obj["type"] == Value::String("Identifier".into()) {
             if parent.is_some()
@@ -144,6 +148,7 @@ pub fn search_json(
                                         string: ".v".to_string(),
                                     })],
                                     vec![],
+                                    vec![variable_name.clone()],
                                 );
                             }
                         }
@@ -151,7 +156,7 @@ pub fn search_json(
                 }
             }
 
-            return (vec![], vec![]);
+            return (vec![], vec![], vec![]);
         } else if obj.contains_key("type")
             && obj["type"] == Value::String("ImportDeclaration".into())
         {
@@ -171,29 +176,73 @@ pub fn search_json(
                     .skip(obj["span"]["start"].as_u64().unwrap() as usize - 1)
                     .take(trim_end as usize - obj["span"]["start"].as_u64().unwrap() as usize)
                     .collect()],
+                vec![],
             );
-        } else {
-            let mut trans_tmp = vec![];
-            let mut import_tmp = vec![];
-            for (_key, value) in obj {
-                let (trans_res, import_res) =
-                    search_json(value, raw_js, variables, imports, Some(&obj));
-                trans_tmp.extend(trans_res);
-                import_tmp.extend(import_res);
+        } else if obj.contains_key("type")
+            && obj["type"] == Value::String("MemberExpression".into())
+        {
+            if let Some(object) = obj.get("object") {
+                if let Some(property) = obj.get("property") {
+                    let is_target_property = if let Value::Object(property) = property {
+                        if let Some(Value::String(property_value)) = property.get("value") {
+                            property_value == "router"
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
+                    let is_target_object = if let Value::Object(object) = object {
+                        if let Some(Value::String(object_value)) = object.get("value") {
+                            object_value == "Blve"
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
+                    if is_target_object && is_target_property {
+                        if let Some(Value::Object(span)) = obj.get("span") {
+                            let start = span["start"].as_u64().unwrap() as u32;
+                            let end = span["end"].as_u64().unwrap() as u32;
+                            return (
+                                vec![TransformInfo::ReplaceText(ReplaceText {
+                                    start_position: start - 1,
+                                    end_position: end - 1,
+                                    string: "$$blveRouter".to_string(),
+                                })],
+                                vec![],
+                                vec![],
+                            );
+                        }
+                    }
+                }
             }
-            return (trans_tmp, import_tmp);
         }
+        let mut trans_tmp = vec![];
+        let mut import_tmp = vec![];
+        let mut dep_vars_tmp = vec![];
+        for (_key, value) in obj {
+            let (trans_res, import_res, dep_vars) =
+                search_json(value, raw_js, variables, imports, Some(&obj));
+            trans_tmp.extend(trans_res);
+            import_tmp.extend(import_res);
+            dep_vars_tmp.extend(dep_vars);
+        }
+        return (trans_tmp, import_tmp, dep_vars_tmp);
     } else if let Value::Array(arr) = json {
         let mut trans_tmp = vec![];
         let mut import_tmp = vec![];
+        let mut dep_vars_tmp = vec![];
         for child_value in arr {
             // TODO: Pass parent to search_json
-            let (trans_res, import_res) =
+            let (trans_res, import_res, dep_vars) =
                 search_json(child_value, raw_js, variables, imports, None);
             trans_tmp.extend(trans_res);
             import_tmp.extend(import_res);
+            dep_vars_tmp.extend(dep_vars);
         }
-        return (trans_tmp, import_tmp);
+        return (trans_tmp, import_tmp, dep_vars_tmp);
     }
-    return (vec![], vec![]);
+    return (vec![], vec![], vec![]);
 }
