@@ -31,7 +31,6 @@ pub struct RemoveChildForCustomComponent {
     pub component_name: String,
     pub attributes: HashMap<String, Option<String>>,
     pub child_uuid: String,
-    pub block_id: String,
     pub ctx: Vec<String>,
     pub elm_loc: Vec<usize>,
 }

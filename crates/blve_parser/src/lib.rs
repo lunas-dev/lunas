@@ -1,7 +1,7 @@
 mod parse2;
 mod parser1;
 mod parsers;
-mod structs;
+pub mod structs;
 mod swc_parser;
 
 use parse2::parse2;
@@ -22,6 +22,8 @@ pub fn parse_blve_file(input: &str) -> Result<DetailedBlock, String> {
         Ok(r) => r,
         Err(e) => return Err(format!("{:?}", e)),
     };
+
+    println!("{:?}", detailed_block.detailed_meta_data);
 
     Ok(detailed_block)
 }
