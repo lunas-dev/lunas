@@ -1,19 +1,19 @@
 export type ComponentDeclaration = (args?: {
   [key: string]: any;
-}) => BlveModuleExports;
+}) => LunasModuleExports;
 
-export type BlveModuleExports = {
-  mount: (elm: HTMLElement) => BlveComponentState;
-  insert: (elm: HTMLElement, anchor: HTMLElement | null) => BlveComponentState;
+export type LunasModuleExports = {
+  mount: (elm: HTMLElement) => LunasComponentState;
+  insert: (elm: HTMLElement, anchor: HTMLElement | null) => LunasComponentState;
   __unmount: () => void;
 };
 
-export type BlveComponentState = {
+export type LunasComponentState = {
   updatedFlag: boolean;
   valUpdateMap: number;
   blkRenderedMap: number;
   blkUpdateMap: number;
-  internalElement: BlveInternalElement;
+  internalElement: LunasInternalElement;
   currentVarBit: number;
   currentIfBlkBit: number;
   ifBlkRenderers: { [key: string]: () => void };
@@ -34,17 +34,17 @@ export type BlveComponentState = {
   // __lunas_init_component: () => void;
 };
 
-type BlveInternalElement = {
+type LunasInternalElement = {
   innerHtml: string;
   topElmTag: string;
   topElmAttr: { [key: string]: string };
 };
 
 class valueObj<T> {
-  dependencies: { [key: symbol]: [BlveComponentState, number] } = {};
+  dependencies: { [key: symbol]: [LunasComponentState, number] } = {};
   constructor(
     private _v: T,
-    componentObj?: BlveComponentState,
+    componentObj?: LunasComponentState,
     componentSymbol?: symbol,
     symbolIndex: number = 0
   ) {
@@ -70,7 +70,7 @@ class valueObj<T> {
     return this._v;
   }
 
-  addDependency(componentObj: BlveComponentState, symbolIndex: number) {
+  addDependency(componentObj: LunasComponentState, symbolIndex: number) {
     this.dependencies[componentObj.compSymbol] = [componentObj, symbolIndex];
     return {
       removeDependency: () => {
@@ -81,7 +81,7 @@ class valueObj<T> {
 }
 
 export const $$lunasInitComponent = function (
-  this: BlveComponentState,
+  this: LunasComponentState,
   args: { [key: string]: any } = {},
   inputs: string[] = []
 ) {
@@ -96,7 +96,7 @@ export const $$lunasInitComponent = function (
   this.compSymbol = Symbol();
   this.resetDependecies = [];
 
-  const genBitOfVariables = function* (this: BlveComponentState) {
+  const genBitOfVariables = function* (this: LunasComponentState) {
     while (true) {
       if (this.currentVarBit === 0) {
         this.currentVarBit = 1;
@@ -121,7 +121,7 @@ export const $$lunasInitComponent = function (
     }
   }
 
-  const genBitOfIfBlks = function* (this: BlveComponentState) {
+  const genBitOfIfBlks = function* (this: LunasComponentState) {
     while (true) {
       if (this.currentIfBlkBit === 0) {
         this.currentIfBlkBit = 1;
@@ -134,7 +134,7 @@ export const $$lunasInitComponent = function (
   }.bind(this);
 
   const componentElementSetter = function (
-    this: BlveComponentState,
+    this: LunasComponentState,
     innerHtml: string,
     topElmTag: string,
     topElmAttr: { [key: string]: string } = {}
@@ -147,16 +147,16 @@ export const $$lunasInitComponent = function (
   }.bind(this);
 
   const setAfterMount = function (
-    this: BlveComponentState,
+    this: LunasComponentState,
     afterMount: () => void
   ) {
     this.__lunas_after_mount = afterMount;
   }.bind(this);
 
   const mount = function (
-    this: BlveComponentState,
+    this: LunasComponentState,
     elm: HTMLElement
-  ): BlveComponentState {
+  ): LunasComponentState {
     if (this.isMounted) throw new Error("Component is already mounted");
     elm.innerHTML = `<${this.internalElement.topElmTag} ${Object.keys(
       this.internalElement.topElmAttr
@@ -172,19 +172,19 @@ export const $$lunasInitComponent = function (
   }.bind(this);
 
   const insert = function (
-    this: BlveComponentState,
+    this: LunasComponentState,
     elm: HTMLElement,
     anchor: HTMLElement | null
-  ): BlveComponentState {
+  ): LunasComponentState {
     if (this.isMounted) throw new Error("Component is already mounted");
-    this.componentElm = createDomElementFromBlveElement(this.internalElement);
+    this.componentElm = createDomElementFromLunasElement(this.internalElement);
     elm.insertBefore(this.componentElm, anchor);
     this.__lunas_after_mount();
     this.isMounted = true;
     return this;
   }.bind(this);
 
-  const __unmount = function (this: BlveComponentState) {
+  const __unmount = function (this: LunasComponentState) {
     if (!this.isMounted) throw new Error("Component is not mounted");
     this.componentElm!.remove();
     this.isMounted = false;
@@ -192,7 +192,7 @@ export const $$lunasInitComponent = function (
   }.bind(this);
 
   const updateComponent = function (
-    this: BlveComponentState,
+    this: LunasComponentState,
     updateFunc: () => void
   ) {
     this.__lunas_update = (() => {
@@ -204,7 +204,7 @@ export const $$lunasInitComponent = function (
     }).bind(this);
   }.bind(this);
 
-  const createReactive = function <T>(this: BlveComponentState, v: T) {
+  const createReactive = function <T>(this: LunasComponentState, v: T) {
     return new valueObj<T>(
       v,
       this,
@@ -214,15 +214,15 @@ export const $$lunasInitComponent = function (
   }.bind(this);
 
   const createIfBlock = function (
-    this: BlveComponentState,
+    this: LunasComponentState,
     name: string,
-    blveElement: () => BlveInternalElement,
+    lunasElement: () => LunasInternalElement,
     getParentAndRefElement: () => [HTMLElement, HTMLElement | null],
     postRender: () => void
   ) {
     const ifBlkBit = genBitOfIfBlks().next().value;
     this.ifBlkRenderers[name] = (() => {
-      const componentElm = createDomElementFromBlveElement(blveElement());
+      const componentElm = createDomElementFromLunasElement(lunasElement());
       const [parentElement, refElement] = getParentAndRefElement();
       parentElement.insertBefore(componentElm, refElement);
       postRender();
@@ -230,7 +230,7 @@ export const $$lunasInitComponent = function (
     }).bind(this);
   }.bind(this);
 
-  const renderIfBlock = function (this: BlveComponentState, name: string) {
+  const renderIfBlock = function (this: LunasComponentState, name: string) {
     if (!this.ifBlkRenderers[name]) return;
     this.ifBlkRenderers[name]();
   }.bind(this);
@@ -246,7 +246,7 @@ export const $$lunasInitComponent = function (
       mount,
       insert,
       __unmount,
-    } as BlveModuleExports,
+    } as LunasModuleExports,
   };
 };
 
@@ -319,11 +319,11 @@ export function $$lunasInsertContent(
   return contentNode;
 }
 
-export function $$createBlveElement(
+export function $$createLunasElement(
   innerHtml: string,
   topElmTag: string,
   topElmAttr: { [key: string]: string }
-): BlveInternalElement {
+): LunasInternalElement {
   return {
     innerHtml,
     topElmTag,
@@ -331,19 +331,19 @@ export function $$createBlveElement(
   };
 }
 
-export const createDomElementFromBlveElement = function (
-  blveElement: BlveInternalElement
+export const createDomElementFromLunasElement = function (
+  lunasElement: LunasInternalElement
 ): HTMLElement {
-  const componentElm = document.createElement(blveElement.topElmTag);
-  Object.keys(blveElement.topElmAttr).forEach((key) => {
-    componentElm.setAttribute(key, blveElement.topElmAttr[key]);
+  const componentElm = document.createElement(lunasElement.topElmTag);
+  Object.keys(lunasElement.topElmAttr).forEach((key) => {
+    componentElm.setAttribute(key, lunasElement.topElmAttr[key]);
   });
-  componentElm.innerHTML = blveElement.innerHtml;
+  componentElm.innerHTML = lunasElement.innerHtml;
   return componentElm;
 };
 
 export const $$lunasCreateNonReactive = function <T>(
-  this: BlveComponentState,
+  this: LunasComponentState,
   v: T
 ) {
   return new valueObj<T>(v);
