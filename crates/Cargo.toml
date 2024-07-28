@@ -7,5 +7,5 @@ members = [
   "blve_parser",
   "lunas_compiler",
   "blve_html_parser",
-  "blve_dev_server",
+  "lunas_dev_server",
 ]

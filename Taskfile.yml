@@ -13,7 +13,7 @@ tasks:
   dev-server:
     cmds:
       - cargo watch -x run --features playground
-    dir: crates/blve_dev_server
+    dir: crates/lunas_dev_server
   build:
     cmds:
       - cd ./crates/lunas_compiler/ && wasm-pack build --target nodejs
