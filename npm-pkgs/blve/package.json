@@ -9,14 +9,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lunas-dev/blve.git"
+    "url": "git+https://github.com/lunas-dev/lunas.git"
   },
   "author": "Lunas Dev Team",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/lunas-dev/blve/issues"
+    "url": "https://github.com/lunas-dev/lunas/issues"
   },
-  "homepage": "https://github.com/lunas-dev/blve#readme",
+  "homepage": "https://github.com/lunas-dev/lunas#readme",
   "private": false,
   "devDependencies": {
     "rome": "^12.1.3"
