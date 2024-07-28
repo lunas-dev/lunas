@@ -1,4 +1,4 @@
-import { BlveModuleExports, ComponentDeclaration } from ".";
+import { LunasModuleExports, ComponentDeclaration } from ".";
 
 export type ComponentLoader = () => Promise<{ default: ComponentDeclaration }>;
 
@@ -10,7 +10,7 @@ export type Route = {
 export class Router {
   routes: Route[];
   notFound: () => void;
-  currentComponent: BlveModuleExports | null;
+  currentComponent: LunasModuleExports | null;
   renderingTarget!: {
     parent: HTMLElement;
     anchor: HTMLElement | null;
