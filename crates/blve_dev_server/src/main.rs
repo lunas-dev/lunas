@@ -1,4 +1,4 @@
-use blve_compiler::compile;
+use lunas_compiler::compile;
 use warp::Filter;
 
 #[tokio::main]

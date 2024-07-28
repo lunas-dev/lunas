@@ -1,3 +1,3 @@
-import { compile } from './wasm-compiler/blve_compiler'
+import { compile } from "./wasm-compiler/lunas_compiler";
 
-export { compile }
+export { compile };

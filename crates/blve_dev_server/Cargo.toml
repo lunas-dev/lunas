@@ -4,7 +4,7 @@ version = "0.0.1"
 edition = "2021"
 
 [dependencies]
-blve_compiler = { version = "0.1.0", path = "../blve_compiler", features = [
+lunas_compiler = { version = "0.1.0", path = "../lunas_compiler", features = [
   "playground",
 ] }
 serde_json = "1.0.120"

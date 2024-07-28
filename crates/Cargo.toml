@@ -5,7 +5,7 @@ resolver = "2"
 members = [
   "blve_generator",
   "blve_parser",
-  "blve_compiler",
+  "lunas_compiler",
   "blve_html_parser",
   "blve_dev_server",
 ]
