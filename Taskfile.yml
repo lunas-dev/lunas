@@ -25,4 +25,4 @@ tasks:
       - cp -r ./npm-pkgs/lunas/src/wasm-compiler/* ./npm-pkgs/lunas/dist/wasm-compiler/
   build-web:
     cmds:
-      - cd ./crates/lunas_compiler/ && wasm-pack build --target web
+      - cd ./crates/lunas_compiler/ && wasm-pack build --target web --features playground
