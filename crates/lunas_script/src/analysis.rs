@@ -1011,20 +1011,36 @@ fn is_object_mutator(m: &swc_ecma_ast::MemberExpr) -> bool {
 /// (destructured/absent) or the callback is passed by reference, returns false
 /// (no injection — a rare aliased element mutation is a documented limitation).
 fn callback_mutates(expr: &Expr) -> bool {
-    let param = match expr {
-        Expr::Arrow(a) => a.params.first().and_then(pat_ident_name),
-        Expr::Fn(f) => f
-            .function
-            .params
-            .first()
-            .and_then(|p| pat_ident_name(&p.pat)),
+    let mut c = MutationPresence {
+        elem: String::new(),
+        found: false,
+    };
+    match expr {
+        Expr::Arrow(a) => {
+            let Some(elem) = a.params.first().and_then(pat_ident_name) else {
+                return false;
+            };
+            c.elem = elem;
+            // Visit the BODY, not the arrow node itself, so the element parameter
+            // isn't mistaken for a shadowing nested binding by visit_arrow_expr.
+            a.body.visit_with(&mut c);
+        }
+        Expr::Fn(f) => {
+            let Some(elem) = f
+                .function
+                .params
+                .first()
+                .and_then(|p| pat_ident_name(&p.pat))
+            else {
+                return false;
+            };
+            c.elem = elem;
+            if let Some(body) = &f.function.body {
+                body.visit_with(&mut c);
+            }
+        }
         _ => return false,
-    };
-    let Some(elem) = param else {
-        return false;
-    };
-    let mut c = MutationPresence { elem, found: false };
-    expr.visit_with(&mut c);
+    }
     c.found
 }
 
@@ -1036,7 +1052,28 @@ fn pat_ident_name(pat: &Pat) -> Option<String> {
     }
 }
 
-/// Reports whether a callback body mutates the element binding `elem`.
+/// Whether a binding pattern binds `name` anywhere (incl. destructuring), so a
+/// nested function that rebinds the element name is recognized as shadowing.
+fn pat_binds(pat: &Pat, name: &str) -> bool {
+    match pat {
+        Pat::Ident(b) => *b.id.sym == *name,
+        Pat::Array(a) => a.elems.iter().flatten().any(|p| pat_binds(p, name)),
+        Pat::Object(o) => o.props.iter().any(|p| match p {
+            ObjectPatProp::KeyValue(kv) => pat_binds(&kv.value, name),
+            ObjectPatProp::Assign(a) => *a.key.sym == *name,
+            ObjectPatProp::Rest(r) => pat_binds(&r.arg, name),
+        }),
+        Pat::Rest(r) => pat_binds(&r.arg, name),
+        Pat::Assign(a) => pat_binds(&a.left, name),
+        _ => false,
+    }
+}
+
+/// Reports whether a callback body mutates the element binding `elem`. Scope-
+/// aware: it does not descend into a nested function that rebinds `elem` as a
+/// parameter, so an inner callback reusing the same name (`a.forEach(e =>
+/// b.forEach(e => e.k = 1))`) does not spuriously attribute the inner mutation
+/// to the outer element.
 struct MutationPresence {
     elem: String,
     found: bool,
@@ -1051,6 +1088,22 @@ impl MutationPresence {
 }
 
 impl Visit for MutationPresence {
+    fn visit_arrow_expr(&mut self, n: &swc_ecma_ast::ArrowExpr) {
+        if n.params.iter().any(|p| pat_binds(p, &self.elem)) {
+            return; // inner scope shadows the element name
+        }
+        n.visit_children_with(self);
+    }
+    fn visit_fn_expr(&mut self, n: &swc_ecma_ast::FnExpr) {
+        if n.function
+            .params
+            .iter()
+            .any(|p| pat_binds(&p.pat, &self.elem))
+        {
+            return;
+        }
+        n.visit_children_with(self);
+    }
     fn visit_assign_expr(&mut self, n: &AssignExpr) {
         if let AssignTarget::Simple(SimpleAssignTarget::Member(m)) = &n.left {
             if self.is_elem_rooted(&m.obj) {

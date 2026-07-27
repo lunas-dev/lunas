@@ -1601,3 +1601,25 @@ fn iteration_callback_local_accumulator_does_not_touch() {
         "push is still instrumented:\n{js}"
     );
 }
+
+#[test]
+fn nested_same_name_callback_shadow_does_not_touch_outer() {
+    // A nested callback that reuses the element name must not attribute its inner
+    // mutation to the OUTER array (would be a spurious touch -> getter self-loop).
+    let js = emit(
+        "html:\n    <p>${total()}</p>\n    <button @click=\"seed()\">a</button>\nscript:\n    let data = [{children:[{done:false}]}]\n    function seed(){ data.push({children:[]}) }\n    function total(){ let n = 0; data.forEach(e => e.children.forEach(e => { if(e.done) n++ })); return n }\n",
+    );
+    assert!(
+        !js.contains("(data.touch(), data.v.forEach("),
+        "inner `e` shadows outer `e`: must NOT touch the outer array:\n{js}"
+    );
+    // But a nested callback with a DIFFERENT param that mutates the outer element
+    // by its real name still injects.
+    let js2 = emit(
+        "html:\n    <button @click=\"go()\">a</button>\n    <p :for=\"t of todos\" :key=\"t.id\">${t.done}</p>\nscript:\n    let todos = [{id:1,done:false,tags:[1]}]\n    function seed(){ todos.push({id:2,done:false,tags:[]}) }\n    function go(){ todos.forEach(e => { e.tags.forEach(x => { e.done = true }) }) }\n",
+    );
+    assert!(
+        js2.contains("(todos.touch(), todos.v.forEach("),
+        "outer element mutated under a non-shadowing inner param: must touch:\n{js2}"
+    );
+}
