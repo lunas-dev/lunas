@@ -25,23 +25,26 @@ export function createContext(root) {
     post: null,
     parent: null,
     onUpdate: null,
-    depth: 0, // consecutive self-triggered flush passes (runaway-loop guard)
+    gen: 0, // current flush-burst id (runaway-loop guard; see flush)
   };
 }
 
-// Cap on consecutive flush passes that re-trigger themselves. A reactive effect
-// that mutates a dependency it reads would otherwise schedule an unbounded chain
-// of microtask flushes and hang the page. With proxy-free deep reactivity a
-// convergent nested write no longer self-limits via an old===new guard (touch()
-// is unconditional), so this bound is what stops a runaway loop — the same
-// safeguard Vue applies (its "Maximum recursive updates" limit).
+// Cap on how many times a SINGLE effect may re-run within one flush burst. A
+// reactive effect that mutates a dependency it reads would otherwise schedule an
+// unbounded chain of microtask flushes and hang the page. With proxy-free deep
+// reactivity a convergent nested write no longer self-limits via an old===new
+// guard (touch() is unconditional), so this per-effect bound is what stops a
+// runaway loop — the same safeguard Vue applies (its "Maximum recursive updates"
+// limit), counted per effect so a long chain of distinct effects is not aborted.
 const MAX_FLUSH_DEPTH = 100;
 
 // bind(c, deps, fn) — register an update function that reads the reactive
 // variable indices in `deps`. Runs fn once immediately (correct first paint,
 // no flush needed). Returns the bind record (needed for unbind).
 export function bind(c, deps, fn) {
-  const s = { fn, q: false, alive: true, deps };
+  // `runs`/`gen` power the runaway-loop guard (see flush): how many times this
+  // record has run within the current flush burst `c.gen`.
+  const s = { fn, q: false, alive: true, deps, runs: 0, gen: -1 };
   fn();
   for (const i of deps) (c.deps[i] || (c.deps[i] = [])).push(s);
   if (c.scope) c.scope.subs.push(s);
@@ -76,7 +79,23 @@ export function flush(c) {
   const ran = q.length > 0;
   for (const s of q) {
     s.q = false;
-    if (s.alive) s.fn();
+    if (s.alive) {
+      // Runaway-loop guard (per effect). A burst is one chain of self-triggered
+      // flushes, tagged by `c.gen`; within it we count how many times THIS record
+      // has run. A distinct-effect cascade runs each record ~once, so it never
+      // trips — only an effect that keeps re-marking a dependency it reads does.
+      // Counting per record (not per pass) is why a long legitimate chain is not
+      // falsely aborted.
+      if (s.gen !== c.gen) {
+        s.gen = c.gen;
+        s.runs = 0;
+      }
+      if (++s.runs > MAX_FLUSH_DEPTH) {
+        abortBurst(c, q);
+        return;
+      }
+      s.fn();
+    }
   }
   // onUpdate (lifecycle.mjs) — a lightweight per-context post-update hook that
   // fires only when an update pass actually ran, distinct from the one-shot
@@ -88,24 +107,30 @@ export function flush(c) {
     c.post = null;
     for (const cb of post) cb();
   }
-  // Runaway-loop guard: if this pass re-triggered itself (an effect mutated a
-  // dependency it reads and scheduled another flush), bound the consecutive
-  // self-triggered passes. Resets the moment a pass settles without re-arming.
-  if (c.pending) {
-    if (++c.depth > MAX_FLUSH_DEPTH) {
-      c.pending = false;
-      c.queue = [];
-      c.depth = 0;
-      if (typeof console !== "undefined" && console.warn) {
-        console.warn(
-          "[lunas] update loop aborted after " +
-            MAX_FLUSH_DEPTH +
-            " self-triggered passes — a reactive effect keeps mutating a dependency it reads."
-        );
-      }
-    }
-  } else {
-    c.depth = 0;
+  // Burst settled (nothing re-armed a flush): start a fresh generation so the
+  // next, unrelated burst counts run-depth from zero.
+  if (!c.pending) c.gen++;
+}
+
+// abortBurst(c, q) — tear down a runaway update loop cleanly. Clears every queued
+// record's `q` flag on BOTH the in-flight queue and any records re-enqueued
+// during this pass (so innocent effects sharing a dependency are not left
+// permanently un-queueable), drops pending post callbacks (afterFlush/nextTick,
+// which could otherwise perpetuate the loop), disarms the pending flush, and
+// bumps the generation. A dev warning names the cause.
+function abortBurst(c, q) {
+  for (const s of q) s.q = false;
+  for (const s of c.queue) s.q = false;
+  c.queue = [];
+  c.post = null;
+  c.pending = false;
+  c.gen++;
+  if (typeof console !== "undefined" && console.warn) {
+    console.warn(
+      "[lunas] update loop aborted after " +
+        MAX_FLUSH_DEPTH +
+        " self-triggered passes — a reactive effect keeps mutating a dependency it reads."
+    );
   }
 }
 

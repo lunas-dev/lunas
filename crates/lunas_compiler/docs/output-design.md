@@ -150,20 +150,26 @@ mutations over the AST (`lunas_script::deep_mutation_sites`): direct member/inde
 writes (`x.k = v`, `x[i] = v`, `x[i].f = v`, `x.f++`, `delete x.k`), mutating
 method calls (`push`/`splice`/`sort`/… and Map/Set `set`/`add`/`delete`/`clear`),
 destructuring targets (`[x[0], x[1]] = …`), `Object.assign`/`defineProperty` on a
-tracked value, and an iteration-callback that mutates elements
-(`x.forEach(e => e.f = …)`, `x.map(e => (e.n = …, e))`) — the last recovered by a
-conservative structural `touch()` when the callback body actually contains a
-mutation, so a pure `filter`/`map` never over-notifies. **Known limitation
-(Svelte-family):** a mutation reached *only* through a cross-function alias —
-passing the value to a helper that mutates a differently-named parameter — is not
-auto-instrumented; reassign the value or call `box.touch()` to make it reactive.
+tracked value, and an iteration-callback that mutates its **element parameter**
+(`x.forEach(e => e.f = …)`, `x.map(e => (e.n = …, e))`, `x.forEach(e =>
+Object.assign(e, …))`). The iteration case is scoped to writes on the element
+binding specifically: a callback-local accumulator (`x.forEach(e => { total +=
+e.n })`, `x.some(e => { found = true })`) is *not* a mutation of `x`, so a pure or
+folding `map`/`filter`/`some`/`reduce` — the shape of an ordinary computed — never
+gets a spurious `touch()`. **Known limitation (Svelte-family):** a mutation
+reached *only* through an alias the syntax can't follow — a cross-function helper
+that mutates a differently-named parameter, or an element captured under a local
+name — is not auto-instrumented; reassign the value or call `box.touch()`.
 
 **Runaway-loop guard.** Because `touch()` is unconditional (no `old === new`
 short-circuit — the compiler cannot cheaply prove a write was a no-op), a reactive
 effect that mutates a dependency it reads no longer self-limits at value
-convergence. The flush loop therefore bounds consecutive self-triggered passes
-(`MAX_FLUSH_DEPTH`, aborting with a dev warning) — the same safeguard Vue applies
-— so such an effect degrades to a bounded stop instead of hanging the page.
+convergence. The flush loop therefore bounds how many times a **single effect**
+may re-run within one flush burst (`MAX_FLUSH_DEPTH`), counted per effect so a
+long legitimate cascade of *distinct* effects is never falsely aborted. On abort
+it clears the queued records' dirty flags and any pending post-callbacks so the
+loop stops cleanly without wedging innocent effects that shared the burst — the
+same class of safeguard Vue applies (its "Maximum recursive updates" limit).
 
 ### Dispatch representation (no BigInt)
 

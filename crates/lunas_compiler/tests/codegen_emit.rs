@@ -1582,3 +1582,22 @@ fn object_assign_and_destructuring_inject_touch() {
         "destructuring assignment to element targets must inject a touch:\n{js}"
     );
 }
+
+#[test]
+fn iteration_callback_local_accumulator_does_not_touch() {
+    // A computed that uses forEach/some with a CALLBACK-LOCAL accumulator/flag
+    // (not an element mutation) must NOT get a touch injected — otherwise reading
+    // it in a bind would self-invalidate into a loop.
+    let js = emit(
+        "html:\n    <p>${sum()}</p>\n    <button @click=\"seed()\">a</button>\nscript:\n    let arr = [{n:1}]\n    function seed(){ arr.push({n:2}) }\n    function sum(){ let total = 0; arr.forEach(x => { total += x.n }); return total }\n",
+    );
+    assert!(
+        js.contains("arr.v.forEach(") && !js.contains("(arr.touch(), arr.v.forEach("),
+        "a local-accumulator forEach must NOT inject a touch (loop hazard):\n{js}"
+    );
+    // The genuine structural mutation (push) is still wrapped.
+    assert!(
+        js.contains("(arr.touch(), arr.v.push("),
+        "push is still instrumented:\n{js}"
+    );
+}

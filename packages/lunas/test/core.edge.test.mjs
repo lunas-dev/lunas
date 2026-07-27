@@ -374,4 +374,60 @@ await test("depth guard resets between independent bursts (no false abort)", asy
   assert.strictEqual(runs, 151, "each independent write flushes once; guard never trips");
 });
 
+await test("aborting a runaway loop does NOT wedge an innocent sibling on another dep", async () => {
+  // The abort must reset queued records' q flags, or an effect that merely shares
+  // the flush with the loop would be skipped forever after the abort.
+  const c = createContext(null);
+  let sib = 0;
+  const origWarn = console.warn;
+  console.warn = () => {};
+  try {
+    bind(c, [1], () => sib++); // innocent, its own dep
+    bind(c, [0], () => markVar(c, 0)); // self-looper on dep 0
+    markVar(c, 0); // start the loop
+    let t = 0;
+    while (c.pending && t < 5000) {
+      t++;
+      await Promise.resolve();
+    }
+    const sibBefore = sib; // 1 (the registration run)
+    markVar(c, 1); // change the innocent dep AFTER the abort
+    await new Promise((r) => setTimeout(r, 0));
+    assert.strictEqual(sib, sibBefore + 1, "innocent sibling still flushes after the abort");
+  } finally {
+    console.warn = origWarn;
+  }
+});
+
+await test("guard counts per effect: a long chain of DISTINCT effects is not aborted", async () => {
+  // 150 distinct effects, each triggering the next once — a legitimate cascade
+  // that must fully propagate (per-effect counting, not per-pass).
+  const c = createContext(null);
+  const boxes = new Array(152).fill(0);
+  const origWarn = console.warn;
+  let warned = false;
+  console.warn = () => (warned = true);
+  try {
+    for (let k = 0; k < 151; k++) {
+      bind(c, [k], () => {
+        if (boxes[k] && !boxes[k + 1]) {
+          boxes[k + 1] = 1;
+          markVar(c, k + 1);
+        }
+      });
+    }
+    boxes[0] = 1;
+    markVar(c, 0);
+    let t = 0;
+    while (c.pending && t < 10000) {
+      t++;
+      await Promise.resolve();
+    }
+    assert.strictEqual(boxes.filter(Boolean).length, 152, "the whole 151-deep chain propagated");
+    assert.strictEqual(warned, false, "no false runaway-loop abort for a distinct-effect chain");
+  } finally {
+    console.warn = origWarn;
+  }
+});
+
 console.log("core.edge.test.mjs: all " + passed + " tests passed");

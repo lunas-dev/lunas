@@ -1001,45 +1001,97 @@ fn is_object_mutator(m: &swc_ecma_ast::MemberExpr) -> bool {
         )
 }
 
-/// True when a callback expression (arrow or function) contains any mutation in
-/// its body: an assignment, an update (`++`/`--`), a `delete`, or a mutating
-/// method call. Over-approximate on purpose — a stray local write only causes a
-/// benign extra re-render, never a wrong one. A callback passed by reference
-/// (`arr.forEach(fn)`) is not a literal function here, so it returns false.
+/// True when a callback (arrow or function) mutates its own ELEMENT parameter —
+/// `e.f = …`, `e.f++`, `delete e.k`, `e.items.push(…)`, `Object.assign(e, …)`.
+/// It is deliberately scoped to the element binding: a write to a callback-LOCAL
+/// variable (an accumulator/flag, as in `arr.forEach(x => { total += x.n })` or
+/// `arr.some(x => { bad = true })`) is NOT a mutation of the array, and treating
+/// it as one would inject a touch into an ordinary read-only computed and turn it
+/// into a self-invalidating loop. If the first parameter isn't a plain identifier
+/// (destructured/absent) or the callback is passed by reference, returns false
+/// (no injection — a rare aliased element mutation is a documented limitation).
 fn callback_mutates(expr: &Expr) -> bool {
-    if !matches!(expr, Expr::Arrow(_) | Expr::Fn(_)) {
+    let param = match expr {
+        Expr::Arrow(a) => a.params.first().and_then(pat_ident_name),
+        Expr::Fn(f) => f
+            .function
+            .params
+            .first()
+            .and_then(|p| pat_ident_name(&p.pat)),
+        _ => return false,
+    };
+    let Some(elem) = param else {
         return false;
-    }
-    let mut c = MutationPresence { found: false };
+    };
+    let mut c = MutationPresence { elem, found: false };
     expr.visit_with(&mut c);
     c.found
 }
 
+/// The identifier a pattern binds, if it is a plain (non-destructured) name.
+fn pat_ident_name(pat: &Pat) -> Option<String> {
+    match pat {
+        Pat::Ident(b) => Some(b.id.sym.to_string()),
+        _ => None,
+    }
+}
+
+/// Reports whether a callback body mutates the element binding `elem`.
 struct MutationPresence {
+    elem: String,
     found: bool,
+}
+
+impl MutationPresence {
+    fn is_elem_rooted(&self, obj: &Expr) -> bool {
+        root_ident(obj)
+            .map(|id| *id.sym == *self.elem)
+            .unwrap_or(false)
+    }
 }
 
 impl Visit for MutationPresence {
     fn visit_assign_expr(&mut self, n: &AssignExpr) {
-        self.found = true;
+        if let AssignTarget::Simple(SimpleAssignTarget::Member(m)) = &n.left {
+            if self.is_elem_rooted(&m.obj) {
+                self.found = true;
+            }
+        }
         n.visit_children_with(self);
     }
     fn visit_update_expr(&mut self, n: &UpdateExpr) {
-        self.found = true;
+        if let Expr::Member(m) = &*n.arg {
+            if self.is_elem_rooted(&m.obj) {
+                self.found = true;
+            }
+        }
         n.visit_children_with(self);
     }
     fn visit_unary_expr(&mut self, n: &swc_ecma_ast::UnaryExpr) {
         if matches!(n.op, swc_ecma_ast::UnaryOp::Delete) {
-            self.found = true;
+            if let Expr::Member(m) = &*n.arg {
+                if self.is_elem_rooted(&m.obj) {
+                    self.found = true;
+                }
+            }
         }
         n.visit_children_with(self);
     }
     fn visit_call_expr(&mut self, n: &CallExpr) {
         if let Callee::Expr(callee) = &n.callee {
             if let Expr::Member(m) = &**callee {
+                // `elem.push(…)` / `elem.child.set(…)` — mutating method on the element.
                 if let MemberProp::Ident(method) = &m.prop {
-                    if is_mutating_method(&method.sym) {
+                    if is_mutating_method(&method.sym) && self.is_elem_rooted(&m.obj) {
                         self.found = true;
+                    }
+                }
+                // `Object.assign(elem, …)` — writes the element by reference.
+                if is_object_mutator(m) {
+                    if let Some(arg) = n.args.first() {
+                        if self.is_elem_rooted(&arg.expr) {
+                            self.found = true;
+                        }
                     }
                 }
             }
