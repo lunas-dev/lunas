@@ -1,0 +1,1638 @@
+//! Lightweight static analysis over a parsed script, for consumers that need to
+//! know what a `script:` block declares (e.g. reactivity analysis must know
+//! which identifiers in template expressions refer to component bindings).
+
+use swc_common::{sync::Lrc, FileName, SourceMap};
+use swc_ecma_ast::{
+    ArrayPat, AssignExpr, AssignTarget, AssignTargetPat, CallExpr, Callee, Decl, Expr, Ident,
+    ImportSpecifier, MemberProp, ModuleDecl, ModuleItem, ObjectPat, ObjectPatProp, Pat,
+    SimpleAssignTarget, Stmt, UpdateExpr, VarDecl,
+};
+use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax, TsSyntax};
+use swc_ecma_visit::{Visit, VisitWith};
+
+use crate::ast::ScriptParseError;
+
+/// Returns the names of all top-level bindings declared by `code`: `let`/
+/// `const`/`var` (including destructured names), `function` and `class`
+/// declarations, and `import` locals. Order follows source order; duplicates
+/// are preserved (the caller dedups if needed).
+///
+/// ```
+/// use lunas_script::declared_bindings;
+///
+/// let names = declared_bindings("let count = 0\nconst { x } = p\nfunction f(){}").unwrap();
+/// assert_eq!(names, ["count", "x", "f"]);
+/// ```
+pub fn declared_bindings(code: &str) -> Result<Vec<String>, ScriptParseError> {
+    Ok(collect_bindings(&parse_program(code)?))
+}
+
+/// Like [`declared_bindings`] but also returns each declared name's byte
+/// `TextRange` within `code` (0-based) — the *declaration site*. The language
+/// server uses this for go-to-definition: a binding referenced in the template
+/// jumps to where the `script:` block declares it.
+///
+/// ```
+/// use lunas_script::declared_bindings_with_spans;
+///
+/// let code = "let count = 0\nfunction inc(){}";
+/// let decls = declared_bindings_with_spans(code).unwrap();
+/// assert_eq!(decls[0].0, "count");
+/// assert_eq!(decls[0].1.slice(code), Some("count"));
+/// assert_eq!(decls[1].1.slice(code), Some("inc"));
+/// ```
+pub fn declared_bindings_with_spans(
+    code: &str,
+) -> Result<Vec<(String, lunas_span::TextRange)>, ScriptParseError> {
+    let (module, fm) = parse_source_with_fm(code.to_string())?;
+    let mut spans: Vec<(String, u32, u32)> = Vec::new();
+    for item in &module.body {
+        match item {
+            ModuleItem::Stmt(Stmt::Decl(decl)) => collect_decl_spans(decl, &mut spans),
+            ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(e)) => {
+                collect_decl_spans(&e.decl, &mut spans)
+            }
+            ModuleItem::ModuleDecl(ModuleDecl::Import(import)) => {
+                for spec in &import.specifiers {
+                    let local = match spec {
+                        ImportSpecifier::Named(n) => &n.local,
+                        ImportSpecifier::Default(d) => &d.local,
+                        ImportSpecifier::Namespace(n) => &n.local,
+                    };
+                    spans.push((local.sym.to_string(), local.span.lo.0, local.span.hi.0));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let base = fm.start_pos.0;
+    let code_len = code.len() as u32;
+    Ok(spans
+        .into_iter()
+        .filter_map(|(name, lo, hi)| {
+            let lo = lo.checked_sub(base)?;
+            let hi = hi.checked_sub(base)?;
+            (hi <= code_len && lo <= hi).then(|| (name, lunas_span::TextRange::at(lo, hi)))
+        })
+        .collect())
+}
+
+fn collect_decl_spans(decl: &Decl, out: &mut Vec<(String, u32, u32)>) {
+    match decl {
+        Decl::Var(var) => {
+            for d in &var.decls {
+                collect_pat_spans(&d.name, out);
+            }
+        }
+        Decl::Fn(f) => out.push((
+            f.ident.sym.to_string(),
+            f.ident.span.lo.0,
+            f.ident.span.hi.0,
+        )),
+        Decl::Class(c) => out.push((
+            c.ident.sym.to_string(),
+            c.ident.span.lo.0,
+            c.ident.span.hi.0,
+        )),
+        _ => {}
+    }
+}
+
+fn collect_pat_spans(pat: &Pat, out: &mut Vec<(String, u32, u32)>) {
+    match pat {
+        Pat::Ident(b) => out.push((b.id.sym.to_string(), b.id.span.lo.0, b.id.span.hi.0)),
+        Pat::Array(arr) => arr
+            .elems
+            .iter()
+            .flatten()
+            .for_each(|e| collect_pat_spans(e, out)),
+        Pat::Object(obj) => {
+            for prop in &obj.props {
+                match prop {
+                    ObjectPatProp::KeyValue(kv) => collect_pat_spans(&kv.value, out),
+                    ObjectPatProp::Assign(a) => {
+                        out.push((a.key.sym.to_string(), a.key.span.lo.0, a.key.span.hi.0))
+                    }
+                    ObjectPatProp::Rest(r) => collect_pat_spans(&r.arg, out),
+                }
+            }
+        }
+        Pat::Rest(rest) => collect_pat_spans(&rest.arg, out),
+        Pat::Assign(assign) => collect_pat_spans(&assign.left, out),
+        _ => {}
+    }
+}
+
+fn collect_bindings(module: &swc_ecma_ast::Module) -> Vec<String> {
+    let mut names = Vec::new();
+    for item in &module.body {
+        match item {
+            ModuleItem::Stmt(Stmt::Decl(decl)) => collect_decl(decl, &mut names),
+            ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(export)) => {
+                collect_decl(&export.decl, &mut names)
+            }
+            ModuleItem::ModuleDecl(ModuleDecl::Import(import)) => {
+                for spec in &import.specifiers {
+                    let local = match spec {
+                        ImportSpecifier::Named(n) => &n.local,
+                        ImportSpecifier::Default(d) => &d.local,
+                        ImportSpecifier::Namespace(n) => &n.local,
+                    };
+                    names.push(local.sym.to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+    names
+}
+
+/// Returns the identifiers *referenced* (read) by a JS expression or program,
+/// in source order. Static member properties (`a.b` → only `a`) and object
+/// literal keys are excluded; computed members (`a[k]` → `a`, `k`) and shorthand
+/// properties (`{x}` → `x`) are included.
+///
+/// This does **not** perform scope analysis: a name bound locally inside the
+/// expression (e.g. an arrow parameter) is still reported. Callers typically
+/// intersect the result with [`declared_bindings`] of the `script:` block to
+/// find which component bindings an expression depends on.
+///
+/// ```
+/// use lunas_script::referenced_identifiers;
+///
+/// let ids = referenced_identifiers("a.b ? f(c) : d[e]").unwrap();
+/// assert_eq!(ids, ["a", "f", "c", "d", "e"]);
+/// ```
+pub fn referenced_identifiers(code: &str) -> Result<Vec<String>, ScriptParseError> {
+    let module = parse_expr_module(code)?;
+    let mut collector = RefCollector { names: Vec::new() };
+    module.visit_with(&mut collector);
+    Ok(collector.names)
+}
+
+/// Like [`referenced_identifiers`] but also returns each identifier's byte
+/// `TextRange` *within `code`* (0-based). The language server adds the
+/// expression's file-absolute start to these to locate references for
+/// highlight / rename across a template.
+///
+/// ```
+/// use lunas_script::referenced_identifiers_with_spans;
+///
+/// let ids = referenced_identifiers_with_spans("a + bb").unwrap();
+/// let names: Vec<_> = ids.iter().map(|(n, _)| n.as_str()).collect();
+/// assert_eq!(names, ["a", "bb"]);
+/// assert_eq!(ids[1].1.slice("a + bb"), Some("bb"));
+/// ```
+pub fn referenced_identifiers_with_spans(
+    code: &str,
+) -> Result<Vec<(String, lunas_span::TextRange)>, ScriptParseError> {
+    // Wrap as `(code);` so a bare expression parses; the `(` shifts offsets by 1.
+    let (module, fm) = parse_source_with_fm(format!("({});", code))?;
+    let mut collector = SpanRefCollector { items: Vec::new() };
+    module.visit_with(&mut collector);
+
+    let base = fm.start_pos.0; // BytePos of the file's first byte
+    const PREFIX: u32 = 1; // the leading "("
+    let code_len = code.len() as u32;
+    let out = collector
+        .items
+        .into_iter()
+        .filter_map(|(name, lo, hi)| {
+            let lo = lo.checked_sub(base)?.checked_sub(PREFIX)?;
+            let hi = hi.checked_sub(base)?.checked_sub(PREFIX)?;
+            (hi <= code_len && lo <= hi).then(|| (name, lunas_span::TextRange::at(lo, hi)))
+        })
+        .collect();
+    Ok(out)
+}
+
+/// Like [`free_identifiers`] but with each identifier's byte `TextRange` within
+/// `code` — the accurate input for LSP find-references / rename of a *component
+/// binding*: occurrences shadowed by a local (e.g. an arrow parameter of the
+/// same name) are excluded, so renaming the binding does not touch them.
+///
+/// ```
+/// use lunas_script::free_identifiers_with_spans;
+///
+/// // `count` is free; the `x` arrow param is excluded.
+/// let ids = free_identifiers_with_spans("count + items.map(x => x)").unwrap();
+/// let names: Vec<_> = ids.iter().map(|(n, _)| n.as_str()).collect();
+/// assert_eq!(names, ["count", "items"]);
+/// assert_eq!(ids[0].1.slice("count + items.map(x => x)"), Some("count"));
+/// ```
+pub fn free_identifiers_with_spans(
+    code: &str,
+) -> Result<Vec<(String, lunas_span::TextRange)>, ScriptParseError> {
+    let (module, fm) = parse_source_with_fm(format!("({});", code))?;
+    let mut c = ScopedFreeCollector::default();
+    module.visit_with(&mut c);
+
+    let base = fm.start_pos.0;
+    const PREFIX: u32 = 1;
+    let code_len = code.len() as u32;
+    Ok(c.free
+        .into_iter()
+        .filter_map(|(name, lo, hi)| {
+            let lo = lo.checked_sub(base)?.checked_sub(PREFIX)?;
+            let hi = hi.checked_sub(base)?.checked_sub(PREFIX)?;
+            (hi <= code_len && lo <= hi).then(|| (name, lunas_span::TextRange::at(lo, hi)))
+        })
+        .collect())
+}
+
+/// Like [`free_identifiers_with_spans`] but parses `code` as a *program* (a
+/// sequence of statements), not a single wrapped expression. This is what an
+/// inline `@event` handler needs: a handler value may be several statements
+/// (`a++; b++`) or a bare assignment (`n = n + 1`), neither of which parses when
+/// wrapped in `(…)`. Spans are 0-based byte offsets within `code`. Never panics;
+/// a malformed handler returns a parse error the caller can drop.
+///
+/// ```
+/// use lunas_script::free_identifiers_with_spans_program;
+///
+/// let ids = free_identifiers_with_spans_program("a++; b = a + 1").unwrap();
+/// let names: Vec<_> = ids.iter().map(|(n, _)| n.as_str()).collect();
+/// assert_eq!(names, ["a", "b", "a"]);
+/// assert_eq!(ids[0].1.slice("a++; b = a + 1"), Some("a"));
+/// ```
+pub fn free_identifiers_with_spans_program(
+    code: &str,
+) -> Result<Vec<(String, lunas_span::TextRange)>, ScriptParseError> {
+    let (module, fm) = parse_source_with_fm(code.to_string())?;
+    let mut c = ScopedFreeCollector::default();
+    module.visit_with(&mut c);
+
+    let base = fm.start_pos.0;
+    let code_len = code.len() as u32;
+    Ok(c.free
+        .into_iter()
+        .filter_map(|(name, lo, hi)| {
+            let lo = lo.checked_sub(base)?;
+            let hi = hi.checked_sub(base)?;
+            (hi <= code_len && lo <= hi).then(|| (name, lunas_span::TextRange::at(lo, hi)))
+        })
+        .collect())
+}
+
+struct SpanRefCollector {
+    items: Vec<(String, u32, u32)>,
+}
+
+impl Visit for SpanRefCollector {
+    fn visit_ident(&mut self, n: &Ident) {
+        self.items
+            .push((n.sym.to_string(), n.span.lo.0, n.span.hi.0));
+    }
+}
+
+/// Parses `code` as a program (a sequence of statements / declarations).
+fn parse_program(code: &str) -> Result<swc_ecma_ast::Module, ScriptParseError> {
+    parse_source(code.to_string())
+}
+
+/// Parses `code` as an expression by wrapping it in `(…);` so a bare expression
+/// (an interpolation / attribute value) parses as a module.
+fn parse_expr_module(code: &str) -> Result<swc_ecma_ast::Module, ScriptParseError> {
+    parse_source(format!("({});", code))
+}
+
+fn parse_source(text: String) -> Result<swc_ecma_ast::Module, ScriptParseError> {
+    Ok(parse_source_with_fm(text)?.0)
+}
+
+fn parse_source_with_fm(
+    text: String,
+) -> Result<(swc_ecma_ast::Module, Lrc<swc_common::SourceFile>), ScriptParseError> {
+    let cm: Lrc<SourceMap> = Default::default();
+    let fm = cm.new_source_file(Lrc::new(FileName::Anon), text);
+    let lexer = Lexer::new(
+        Syntax::Typescript(TsSyntax {
+            tsx: false,
+            ..Default::default()
+        }),
+        Default::default(),
+        StringInput::from(&*fm),
+        None,
+    );
+    let mut parser = Parser::new_from(lexer);
+    let module = parser
+        .parse_module()
+        .map_err(|e| ScriptParseError::Parse(format!("{:?}", e)))?;
+    Ok((module, fm))
+}
+
+struct RefCollector {
+    names: Vec<String>,
+}
+
+impl Visit for RefCollector {
+    fn visit_ident(&mut self, n: &Ident) {
+        // `undefined`/`NaN`/etc. are idents too, but harmless to report; callers
+        // intersect with the binding set anyway.
+        self.names.push(n.sym.to_string());
+    }
+}
+
+/// Like [`referenced_identifiers`] but excludes names bound *locally* within the
+/// expression — function/arrow parameters and block-scoped local declarations.
+/// So `items.map(x => x.active)` reports `items`, not `x`. This is the accurate
+/// input for reactivity: the free variables an expression actually depends on.
+///
+/// Uses proper lexical scoping (a scope stack), so a name that is free in an
+/// outer scope is still reported even when an inner scope binds the same name:
+/// `a + (a => a)` reports `a` (the inner `a` is the param).
+///
+/// ```
+/// use lunas_script::free_identifiers;
+///
+/// assert_eq!(free_identifiers("items.map(x => x.active)").unwrap(), ["items"]);
+/// assert_eq!(free_identifiers("() => count + 1").unwrap(), ["count"]);
+/// ```
+pub fn free_identifiers(code: &str) -> Result<Vec<String>, ScriptParseError> {
+    let module = parse_expr_module(code)?;
+    let mut c = ScopedFreeCollector::default();
+    module.visit_with(&mut c);
+    Ok(c.free.into_iter().map(|(name, ..)| name).collect())
+}
+
+/// Collects free identifiers with proper lexical scoping: a name is reported
+/// only if it is not bound by an enclosing function/arrow parameter or a local
+/// declaration in any enclosing scope. So in `a + (a => a)` the outer `a` is
+/// free while the arrow's `a` is bound.
+#[derive(Default)]
+struct ScopedFreeCollector {
+    scopes: Vec<std::collections::HashSet<String>>,
+    free: Vec<(String, u32, u32)>,
+}
+
+impl ScopedFreeCollector {
+    fn is_bound(&self, name: &str) -> bool {
+        self.scopes.iter().any(|s| s.contains(name))
+    }
+}
+
+impl Visit for ScopedFreeCollector {
+    fn visit_arrow_expr(&mut self, n: &swc_ecma_ast::ArrowExpr) {
+        let mut scope = std::collections::HashSet::new();
+        for p in &n.params {
+            collect_pat_names(p, &mut scope);
+        }
+        self.scopes.push(scope);
+        n.visit_children_with(self);
+        self.scopes.pop();
+    }
+
+    fn visit_function(&mut self, n: &swc_ecma_ast::Function) {
+        let mut scope = std::collections::HashSet::new();
+        for p in &n.params {
+            collect_pat_names(&p.pat, &mut scope);
+        }
+        self.scopes.push(scope);
+        n.visit_children_with(self);
+        self.scopes.pop();
+    }
+
+    fn visit_fn_decl(&mut self, n: &swc_ecma_ast::FnDecl) {
+        // The name is a binding occurrence (already bound in the enclosing block
+        // scope by `visit_block_stmt`); skip it and visit only the function.
+        n.function.visit_with(self);
+    }
+
+    fn visit_fn_expr(&mut self, n: &swc_ecma_ast::FnExpr) {
+        // A named function expression can reference its own name internally, so
+        // bind it for the function's scope; the name itself is not a free ref.
+        let mut scope = std::collections::HashSet::new();
+        if let Some(id) = &n.ident {
+            scope.insert(id.sym.to_string());
+        }
+        self.scopes.push(scope);
+        n.function.visit_with(self);
+        self.scopes.pop();
+    }
+
+    fn visit_class_decl(&mut self, n: &swc_ecma_ast::ClassDecl) {
+        n.class.visit_with(self);
+    }
+
+    fn visit_class_expr(&mut self, n: &swc_ecma_ast::ClassExpr) {
+        let mut scope = std::collections::HashSet::new();
+        if let Some(id) = &n.ident {
+            scope.insert(id.sym.to_string());
+        }
+        self.scopes.push(scope);
+        n.class.visit_with(self);
+        self.scopes.pop();
+    }
+
+    fn visit_block_stmt(&mut self, n: &swc_ecma_ast::BlockStmt) {
+        // Block-scoped declarations (and hoisted var/function) are visible
+        // throughout the block, so collect them before visiting reads.
+        let mut scope = std::collections::HashSet::new();
+        for stmt in &n.stmts {
+            if let Stmt::Decl(decl) = stmt {
+                let mut names = Vec::new();
+                collect_decl(decl, &mut names);
+                scope.extend(names);
+            }
+        }
+        self.scopes.push(scope);
+        n.visit_children_with(self);
+        self.scopes.pop();
+    }
+
+    fn visit_for_stmt(&mut self, n: &swc_ecma_ast::ForStmt) {
+        // A C-style `for (let i = 0; …; …)` header declares `i` for the whole
+        // loop (init/test/update/body). Only a `VarDecl` init binds — a bare
+        // expression init (`for (i = 0; …)`) assigns an existing binding and
+        // must stay a free read.
+        let mut scope = std::collections::HashSet::new();
+        if let Some(swc_ecma_ast::VarDeclOrExpr::VarDecl(var)) = &n.init {
+            for d in &var.decls {
+                collect_pat_names(&d.name, &mut scope);
+            }
+        }
+        self.scopes.push(scope);
+        n.visit_children_with(self);
+        self.scopes.pop();
+    }
+
+    fn visit_for_in_stmt(&mut self, n: &swc_ecma_ast::ForInStmt) {
+        self.scopes.push(for_head_scope(&n.left));
+        n.visit_children_with(self);
+        self.scopes.pop();
+    }
+
+    fn visit_for_of_stmt(&mut self, n: &swc_ecma_ast::ForOfStmt) {
+        self.scopes.push(for_head_scope(&n.left));
+        n.visit_children_with(self);
+        self.scopes.pop();
+    }
+
+    fn visit_catch_clause(&mut self, n: &swc_ecma_ast::CatchClause) {
+        // `try {} catch (e) {}` — the catch parameter (including destructuring)
+        // is scoped to the catch body. Mirrors `ModuleRefCollector`.
+        let mut scope = std::collections::HashSet::new();
+        if let Some(p) = &n.param {
+            collect_pat_names(p, &mut scope);
+        }
+        self.scopes.push(scope);
+        n.body.visit_with(self);
+        self.scopes.pop();
+    }
+
+    fn visit_ident(&mut self, n: &Ident) {
+        if !self.is_bound(&n.sym) {
+            self.free
+                .push((n.sym.to_string(), n.span.lo.0, n.span.hi.0));
+        }
+    }
+}
+
+/// The names introduced by a `for-of` / `for-in` head. A `VarDecl` head
+/// (`for (const x of …)`) declares its pattern; a bare pattern head
+/// (`for (x of …)`) is an assignment to an existing binding and introduces
+/// nothing.
+fn for_head_scope(head: &swc_ecma_ast::ForHead) -> std::collections::HashSet<String> {
+    let mut scope = std::collections::HashSet::new();
+    if let swc_ecma_ast::ForHead::VarDecl(var) = head {
+        for d in &var.decls {
+            collect_pat_names(&d.name, &mut scope);
+        }
+    }
+    scope
+}
+
+fn collect_pat_names(pat: &Pat, out: &mut std::collections::HashSet<String>) {
+    let mut v = Vec::new();
+    collect_pat(pat, &mut v);
+    out.extend(v);
+}
+
+/// Returns the identifiers *assigned to* (mutated) by `code`: targets of `=`
+/// and compound assignments, and of `++`/`--`. For a member target the root
+/// object is reported (`obj.x = 1` → `obj`), since mutating a property mutates
+/// the binding. Combined with [`declared_bindings`], this tells the orchestrator
+/// which component state a handler changes (so it can trigger reactive updates).
+///
+/// ```
+/// use lunas_script::assigned_identifiers;
+///
+/// assert_eq!(assigned_identifiers("count = count + 1; obj.x = 2; n++").unwrap(),
+///            ["count", "obj", "n"]);
+/// ```
+/// A single deep-mutation site of one of the `targets` variables: the byte
+/// range of the whole mutation expression (so a caller can wrap it), the root
+/// variable name mutated, and — when the mutation is an element-field write on a
+/// direct array element (`X[idx].field = …`) — the byte range of the index
+/// expression `idx` (so the caller can attribute the change to `X[idx]` for
+/// fine-grained `:for` patching). `elem_index` is `None` for a STRUCTURAL
+/// mutation (`X.push(…)`, `X[i] = y`, `X.k = v`, `delete X.k`, `X.length = n`,
+/// Map/Set `set`/`add`/`delete`/`clear`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeepMutationSite {
+    /// Byte range of the whole mutation expression within `code`.
+    pub expr: lunas_span::TextRange,
+    /// Root variable being deep-mutated.
+    pub root: String,
+    /// For an element-field write, the byte range of the `[idx]` index expr.
+    pub elem_index: Option<lunas_span::TextRange>,
+}
+
+/// Finds every deep-mutation site of a variable in `targets`. This is what
+/// proxy-free deep reactivity needs: after each returned mutation the compiler
+/// injects `root.touch()` (structural) or `root.touchElem(root.v[idx])`
+/// (element-field), so a deep mutation still marks the variable dirty without a
+/// runtime Proxy. Parses `code` as a program (works for both a whole `script:`
+/// block and an inline `@event` handler). Never panics; a parse error yields an
+/// empty list (the caller falls back to no injection).
+///
+/// Element-field is detected only for the unambiguous, side-effect-free shape
+/// `X[idx].…` where `idx` is a bare identifier or number literal (so
+/// re-evaluating `X.v[idx]` in the injected call is safe); every other deep
+/// mutation is reported as structural (always correct, just coarser).
+///
+/// ```
+/// use lunas_script::deep_mutation_sites;
+///
+/// let sites = deep_mutation_sites("rows[i].label = x; rows.push(y)",
+///                                 &["rows".to_string()]).unwrap();
+/// assert_eq!(sites.len(), 2);
+/// assert!(sites[0].elem_index.is_some()); // rows[i].label = x  -> touchElem
+/// assert!(sites[1].elem_index.is_none());  // rows.push(y)       -> touch
+/// ```
+pub fn deep_mutation_sites(
+    code: &str,
+    targets: &[String],
+) -> Result<Vec<DeepMutationSite>, ScriptParseError> {
+    let (module, fm) = parse_source_with_fm(code.to_string())?;
+    let mut c = MutationSiteCollector {
+        targets: targets.iter().map(|s| s.as_str().to_string()).collect(),
+        sites: Vec::new(),
+    };
+    module.visit_with(&mut c);
+    let base = fm.start_pos.0;
+    let code_len = code.len() as u32;
+    let conv = |lo: u32, hi: u32| -> Option<lunas_span::TextRange> {
+        let lo = lo.checked_sub(base)?;
+        let hi = hi.checked_sub(base)?;
+        (hi <= code_len && lo <= hi).then(|| lunas_span::TextRange::at(lo, hi))
+    };
+    Ok(c.sites
+        .into_iter()
+        .filter_map(|s| {
+            let expr = conv(s.expr_lo, s.expr_hi)?;
+            let elem_index = match s.idx {
+                Some((lo, hi)) => Some(conv(lo, hi)?),
+                None => None,
+            };
+            Some(DeepMutationSite {
+                expr,
+                root: s.root,
+                elem_index,
+            })
+        })
+        .collect())
+}
+
+pub fn assigned_identifiers(code: &str) -> Result<Vec<String>, ScriptParseError> {
+    let module = parse_program(code)?;
+    let mut collector = AssignCollector { names: Vec::new() };
+    module.visit_with(&mut collector);
+    Ok(collector.names)
+}
+
+/// For each top-level function (a `function` declaration or a `const f = …`
+/// arrow/function expression), returns its name and the identifiers its body
+/// mutates (deduplicated). This is what reactivity needs for the common pattern
+/// of an event handler that *calls* a function which mutates state — e.g.
+/// `@click="add(x)"` where `function add(){ items = … }`: the click depends on
+/// `add`'s mutation set, not on any direct assignment in the handler text.
+///
+/// ```
+/// use lunas_script::function_mutations;
+///
+/// let muts = function_mutations(
+///     "function add(){ items = items.concat(x); count++ }\nconst noop = () => 0"
+/// ).unwrap();
+/// assert_eq!(muts, vec![("add".to_string(), vec!["items".to_string(), "count".to_string()]),
+///                       ("noop".to_string(), vec![])]);
+/// ```
+pub fn function_mutations(code: &str) -> Result<Vec<(String, Vec<String>)>, ScriptParseError> {
+    Ok(collect_function_mutations(&parse_program(code)?))
+}
+
+/// For each top-level function (a `function` declaration or a `const f = …`
+/// arrow/function expression), returns its name and the free identifiers its
+/// body *reads* (deduplicated) — its dependency set. This is the read-side
+/// counterpart of [`function_mutations`]: it tells reactivity when a value
+/// computed by *calling* the function must be recomputed (e.g. `${ total() }`
+/// re-renders when `total`'s dependencies change).
+///
+/// The set is scope-aware (params/locals excluded) and **includes the names of
+/// any functions the body calls** (they are free reads), so a caller can expand
+/// dependencies transitively to a fixpoint.
+///
+/// ```
+/// use lunas_script::function_dependencies;
+///
+/// let deps = function_dependencies(
+///     "function total(){ return price * qty }\nconst f = () => total() + tax"
+/// ).unwrap();
+/// assert_eq!(deps[0], ("total".to_string(), vec!["price".to_string(), "qty".to_string()]));
+/// // `f` reads `tax` and calls `total` (listed for transitive expansion).
+/// assert_eq!(deps[1], ("f".to_string(), vec!["total".to_string(), "tax".to_string()]));
+/// ```
+pub fn function_dependencies(code: &str) -> Result<Vec<(String, Vec<String>)>, ScriptParseError> {
+    Ok(collect_function_dependencies(&parse_program(code)?))
+}
+
+fn collect_function_dependencies(module: &swc_ecma_ast::Module) -> Vec<(String, Vec<String>)> {
+    let mut out = Vec::new();
+    for item in &module.body {
+        let decl = match item {
+            ModuleItem::Stmt(Stmt::Decl(d)) => d,
+            ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(e)) => &e.decl,
+            _ => continue,
+        };
+        match decl {
+            Decl::Fn(f) => {
+                let mut c = ScopedFreeCollector::default();
+                f.function.visit_with(&mut c);
+                out.push((f.ident.sym.to_string(), dedup(free_names(c))));
+            }
+            Decl::Var(var) => {
+                for d in &var.decls {
+                    if let (Pat::Ident(name), Some(init)) = (&d.name, &d.init) {
+                        if is_callable(init) {
+                            let mut c = ScopedFreeCollector::default();
+                            init.visit_with(&mut c);
+                            out.push((name.id.sym.to_string(), dedup(free_names(c))));
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+fn free_names(c: ScopedFreeCollector) -> Vec<String> {
+    c.free.into_iter().map(|(name, ..)| name).collect()
+}
+
+fn collect_function_mutations(module: &swc_ecma_ast::Module) -> Vec<(String, Vec<String>)> {
+    let mut out = Vec::new();
+    for item in &module.body {
+        let decl = match item {
+            ModuleItem::Stmt(Stmt::Decl(d)) => d,
+            ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(e)) => &e.decl,
+            _ => continue,
+        };
+        match decl {
+            Decl::Fn(f) => {
+                let mut c = AssignCollector { names: Vec::new() };
+                f.function.visit_with(&mut c);
+                out.push((f.ident.sym.to_string(), dedup(c.names)));
+            }
+            Decl::Var(var) => {
+                for d in &var.decls {
+                    if let (Pat::Ident(name), Some(init)) = (&d.name, &d.init) {
+                        if is_callable(init) {
+                            let mut c = AssignCollector { names: Vec::new() };
+                            init.visit_with(&mut c);
+                            out.push((name.id.sym.to_string(), dedup(c.names)));
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+/// A whole-`script:`-block analysis computed in a single parse: the names the
+/// script declares and, for each top-level function, what it mutates. This is
+/// the per-component analysis the orchestrator runs once (rather than parsing
+/// the script twice via [`declared_bindings`] + [`function_mutations`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScriptAnalysis {
+    pub bindings: Vec<String>,
+    pub function_mutations: Vec<(String, Vec<String>)>,
+}
+
+/// Analyzes a `script:` block in one parse. See [`ScriptAnalysis`].
+///
+/// ```
+/// use lunas_script::analyze_script;
+///
+/// let a = analyze_script("let n = 0\nfunction inc(){ n++ }").unwrap();
+/// assert_eq!(a.bindings, ["n", "inc"]);
+/// assert_eq!(a.function_mutations, vec![("inc".to_string(), vec!["n".to_string()])]);
+/// ```
+pub fn analyze_script(code: &str) -> Result<ScriptAnalysis, ScriptParseError> {
+    let module = parse_program(code)?;
+    Ok(ScriptAnalysis {
+        bindings: collect_bindings(&module),
+        function_mutations: collect_function_mutations(&module),
+    })
+}
+
+fn is_callable(expr: &Expr) -> bool {
+    matches!(expr, Expr::Arrow(_) | Expr::Fn(_))
+}
+
+fn dedup(names: Vec<String>) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    names
+        .into_iter()
+        .filter(|n| seen.insert(n.clone()))
+        .collect()
+}
+
+struct AssignCollector {
+    names: Vec<String>,
+}
+
+impl Visit for AssignCollector {
+    fn visit_assign_expr(&mut self, n: &AssignExpr) {
+        match &n.left {
+            AssignTarget::Simple(s) => self.collect_simple(s),
+            AssignTarget::Pat(AssignTargetPat::Array(a)) => self.collect_array(a),
+            AssignTarget::Pat(AssignTargetPat::Object(o)) => self.collect_object(o),
+            AssignTarget::Pat(_) => {}
+        }
+        // Recurse into the right-hand side to catch nested assignments / updates.
+        n.right.visit_with(self);
+    }
+
+    fn visit_update_expr(&mut self, n: &UpdateExpr) {
+        if let Some(id) = root_ident(&n.arg) {
+            self.names.push(id.sym.to_string());
+        }
+        n.arg.visit_with(self);
+    }
+
+    fn visit_call_expr(&mut self, n: &CallExpr) {
+        // A mutating method call on a binding deep-mutates it: `items.push(x)`,
+        // `list.splice(…)`, `set.add(…)`, `map.clear()`, … all change the value
+        // the binding holds even though nothing is assigned. Report the root
+        // object so the binding is treated as reactive (and later boxed with a
+        // `deepBox`). Only *known* mutators count — a `.filter()`/`.map()` is
+        // non-mutating and must not spuriously mark the binding.
+        if let Callee::Expr(callee) = &n.callee {
+            if let Expr::Member(m) = &**callee {
+                if let MemberProp::Ident(method) = &m.prop {
+                    if is_mutating_method(&method.sym) {
+                        if let Some(id) = root_ident(&m.obj) {
+                            self.names.push(id.sym.to_string());
+                        }
+                    }
+                }
+            }
+        }
+        // Still recurse: arguments (and the callee object) may contain further
+        // assignments / mutations.
+        n.visit_children_with(self);
+    }
+}
+
+// --- deep-mutation site collection (proxy-free reactivity) -------------------
+
+struct RawMutationSite {
+    expr_lo: u32,
+    expr_hi: u32,
+    root: String,
+    idx: Option<(u32, u32)>,
+}
+
+struct MutationSiteCollector {
+    targets: std::collections::HashSet<String>,
+    sites: Vec<RawMutationSite>,
+}
+
+impl MutationSiteCollector {
+    /// Record a member-target deep mutation (`X.f = …`, `X[i] = …`,
+    /// `X[i].f = …`, `X.f++`, `delete X.f`). `expr` is the whole mutation
+    /// expression's span (what the caller wraps).
+    fn record_member(&mut self, m: &swc_ecma_ast::MemberExpr, expr: swc_common::Span) {
+        let Some(root) = root_ident(&m.obj) else {
+            return;
+        };
+        let name = root.sym.to_string();
+        if !self.targets.contains(&name) {
+            return;
+        }
+        self.sites.push(RawMutationSite {
+            expr_lo: expr.lo.0,
+            expr_hi: expr.hi.0,
+            root: name,
+            idx: element_index_span(m),
+        });
+    }
+
+    /// Record a STRUCTURAL touch of `root` over `span`, if `root` is a target and
+    /// not already recorded for this exact span (dedup keeps a destructuring swap
+    /// `[a[0], a[1]] = …` to a single `a.touch()`).
+    fn push_structural(&mut self, root: &str, span: swc_common::Span) {
+        if !self.targets.contains(root) {
+            return;
+        }
+        if self.sites.iter().any(|s| {
+            s.root == root && s.idx.is_none() && s.expr_lo == span.lo.0 && s.expr_hi == span.hi.0
+        }) {
+            return;
+        }
+        self.sites.push(RawMutationSite {
+            expr_lo: span.lo.0,
+            expr_hi: span.hi.0,
+            root: root.to_string(),
+            idx: None,
+        });
+    }
+
+    /// Walk a destructuring-assignment target pattern and record a structural
+    /// touch for every member/element target rooted at a deep var — e.g.
+    /// `[arr[0], arr[1]] = …` or `({ a: obj.k } = …)`. The old Proxy caught these
+    /// through the value; syntax-based tracking must find them in the pattern.
+    fn record_pat_targets(&mut self, pat: &Pat, span: swc_common::Span) {
+        match pat {
+            Pat::Expr(e) => {
+                if let Expr::Member(m) = &**e {
+                    if let Some(id) = root_ident(&m.obj) {
+                        self.push_structural(&id.sym, span);
+                    }
+                }
+            }
+            Pat::Array(a) => {
+                for el in a.elems.iter().flatten() {
+                    self.record_pat_targets(el, span);
+                }
+            }
+            Pat::Object(o) => {
+                for p in &o.props {
+                    match p {
+                        ObjectPatProp::KeyValue(kv) => self.record_pat_targets(&kv.value, span),
+                        ObjectPatProp::Rest(r) => self.record_pat_targets(&r.arg, span),
+                        ObjectPatProp::Assign(_) => {}
+                    }
+                }
+            }
+            Pat::Rest(r) => self.record_pat_targets(&r.arg, span),
+            Pat::Assign(a) => self.record_pat_targets(&a.left, span),
+            _ => {}
+        }
+    }
+}
+
+impl Visit for MutationSiteCollector {
+    fn visit_assign_expr(&mut self, n: &AssignExpr) {
+        match &n.left {
+            // Member/index target: `X.f = …`, `X[i] = …`, `X[i].f = …`.
+            AssignTarget::Simple(SimpleAssignTarget::Member(m)) => self.record_member(m, n.span),
+            // Destructuring target: `[X[0], X[1]] = …`, `({ a: X.k } = …)`.
+            AssignTarget::Pat(AssignTargetPat::Array(a)) => {
+                for el in a.elems.iter().flatten() {
+                    self.record_pat_targets(el, n.span);
+                }
+            }
+            AssignTarget::Pat(AssignTargetPat::Object(o)) => {
+                for p in &o.props {
+                    match p {
+                        ObjectPatProp::KeyValue(kv) => self.record_pat_targets(&kv.value, n.span),
+                        ObjectPatProp::Rest(r) => self.record_pat_targets(&r.arg, n.span),
+                        ObjectPatProp::Assign(_) => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+        n.visit_children_with(self);
+    }
+
+    fn visit_update_expr(&mut self, n: &UpdateExpr) {
+        if let Expr::Member(m) = &*n.arg {
+            self.record_member(m, n.span);
+        }
+        n.visit_children_with(self);
+    }
+
+    fn visit_unary_expr(&mut self, n: &swc_ecma_ast::UnaryExpr) {
+        if matches!(n.op, swc_ecma_ast::UnaryOp::Delete) {
+            if let Expr::Member(m) = &*n.arg {
+                self.record_member(m, n.span);
+            }
+        }
+        n.visit_children_with(self);
+    }
+
+    fn visit_call_expr(&mut self, n: &CallExpr) {
+        if let Callee::Expr(callee) = &n.callee {
+            if let Expr::Member(m) = &**callee {
+                if let MemberProp::Ident(method) = &m.prop {
+                    let mname = method.sym.as_ref();
+                    if is_mutating_method(mname) {
+                        // `X.push(…)`, `X.splice(…)`, Map/Set `set`/`add`/… — structural.
+                        if let Some(id) = root_ident(&m.obj) {
+                            self.push_structural(&id.sym, n.span);
+                        }
+                    } else if is_iteration_method(mname)
+                        && n.args.iter().any(|a| callback_mutates(&a.expr))
+                    {
+                        // `X.forEach(el => el.f = …)` / `X.map(el => (el.n = …, el))`:
+                        // the callback mutates elements through an alias the syntax
+                        // scan can't attribute, so conservatively force a structural
+                        // touch of the receiver (safe: at worst an extra reconcile).
+                        if let Some(id) = root_ident(&m.obj) {
+                            self.push_structural(&id.sym, n.span);
+                        }
+                    }
+                }
+                // `Object.assign(X, …)` / `Object.defineProperty(X, …)` mutate their
+                // first argument by reference — attribute the touch to that argument.
+                if is_object_mutator(m) {
+                    if let Some(arg) = n.args.first() {
+                        if let Some(id) = root_ident(&arg.expr) {
+                            self.push_structural(&id.sym, n.span);
+                        }
+                    }
+                }
+            }
+        }
+        n.visit_children_with(self);
+    }
+}
+
+/// Array iteration methods whose callback commonly mutates the elements. Only
+/// triggers a touch when the callback body actually contains a mutation (checked
+/// by [`callback_mutates`]) — a pure `filter`/`map` never spuriously touches.
+/// `reduce`/`reduceRight` are intentionally excluded: their callback usually
+/// mutates a separate accumulator, not the array.
+fn is_iteration_method(name: &str) -> bool {
+    matches!(
+        name,
+        "forEach"
+            | "map"
+            | "flatMap"
+            | "filter"
+            | "some"
+            | "every"
+            | "find"
+            | "findIndex"
+            | "findLast"
+            | "findLastIndex"
+    )
+}
+
+/// `Object.assign` / `Object.defineProperty` / `Object.defineProperties` /
+/// `Object.setPrototypeOf` — builtins that mutate the object passed as their
+/// first argument in place.
+fn is_object_mutator(m: &swc_ecma_ast::MemberExpr) -> bool {
+    let (Expr::Ident(obj), MemberProp::Ident(prop)) = (&*m.obj, &m.prop) else {
+        return false;
+    };
+    obj.sym.as_ref() == "Object"
+        && matches!(
+            prop.sym.as_ref(),
+            "assign" | "defineProperty" | "defineProperties" | "setPrototypeOf"
+        )
+}
+
+/// True when a callback (arrow or function) mutates its own ELEMENT parameter —
+/// `e.f = …`, `e.f++`, `delete e.k`, `e.items.push(…)`, `Object.assign(e, …)`.
+/// It is deliberately scoped to the element binding: a write to a callback-LOCAL
+/// variable (an accumulator/flag, as in `arr.forEach(x => { total += x.n })` or
+/// `arr.some(x => { bad = true })`) is NOT a mutation of the array, and treating
+/// it as one would inject a touch into an ordinary read-only computed and turn it
+/// into a self-invalidating loop. If the first parameter isn't a plain identifier
+/// (destructured/absent) or the callback is passed by reference, returns false
+/// (no injection — a rare aliased element mutation is a documented limitation).
+fn callback_mutates(expr: &Expr) -> bool {
+    let mut c = MutationPresence {
+        elem: String::new(),
+        found: false,
+    };
+    match expr {
+        Expr::Arrow(a) => {
+            let Some(elem) = a.params.first().and_then(pat_ident_name) else {
+                return false;
+            };
+            c.elem = elem;
+            // Visit the BODY, not the arrow node itself, so the element parameter
+            // isn't mistaken for a shadowing nested binding by visit_arrow_expr.
+            a.body.visit_with(&mut c);
+        }
+        Expr::Fn(f) => {
+            let Some(elem) = f
+                .function
+                .params
+                .first()
+                .and_then(|p| pat_ident_name(&p.pat))
+            else {
+                return false;
+            };
+            c.elem = elem;
+            if let Some(body) = &f.function.body {
+                body.visit_with(&mut c);
+            }
+        }
+        _ => return false,
+    }
+    c.found
+}
+
+/// The identifier a pattern binds, if it is a plain (non-destructured) name.
+fn pat_ident_name(pat: &Pat) -> Option<String> {
+    match pat {
+        Pat::Ident(b) => Some(b.id.sym.to_string()),
+        _ => None,
+    }
+}
+
+/// Whether a binding pattern binds `name` anywhere (incl. destructuring), so a
+/// nested function that rebinds the element name is recognized as shadowing.
+fn pat_binds(pat: &Pat, name: &str) -> bool {
+    match pat {
+        Pat::Ident(b) => *b.id.sym == *name,
+        Pat::Array(a) => a.elems.iter().flatten().any(|p| pat_binds(p, name)),
+        Pat::Object(o) => o.props.iter().any(|p| match p {
+            ObjectPatProp::KeyValue(kv) => pat_binds(&kv.value, name),
+            ObjectPatProp::Assign(a) => *a.key.sym == *name,
+            ObjectPatProp::Rest(r) => pat_binds(&r.arg, name),
+        }),
+        Pat::Rest(r) => pat_binds(&r.arg, name),
+        Pat::Assign(a) => pat_binds(&a.left, name),
+        _ => false,
+    }
+}
+
+/// Reports whether a callback body mutates the element binding `elem`. Scope-
+/// aware: it does not descend into a nested function that rebinds `elem` as a
+/// parameter, so an inner callback reusing the same name (`a.forEach(e =>
+/// b.forEach(e => e.k = 1))`) does not spuriously attribute the inner mutation
+/// to the outer element.
+struct MutationPresence {
+    elem: String,
+    found: bool,
+}
+
+impl MutationPresence {
+    fn is_elem_rooted(&self, obj: &Expr) -> bool {
+        root_ident(obj)
+            .map(|id| *id.sym == *self.elem)
+            .unwrap_or(false)
+    }
+}
+
+impl Visit for MutationPresence {
+    fn visit_arrow_expr(&mut self, n: &swc_ecma_ast::ArrowExpr) {
+        if n.params.iter().any(|p| pat_binds(p, &self.elem)) {
+            return; // inner scope shadows the element name
+        }
+        n.visit_children_with(self);
+    }
+    fn visit_fn_expr(&mut self, n: &swc_ecma_ast::FnExpr) {
+        if n.function
+            .params
+            .iter()
+            .any(|p| pat_binds(&p.pat, &self.elem))
+        {
+            return;
+        }
+        n.visit_children_with(self);
+    }
+    fn visit_assign_expr(&mut self, n: &AssignExpr) {
+        if let AssignTarget::Simple(SimpleAssignTarget::Member(m)) = &n.left {
+            if self.is_elem_rooted(&m.obj) {
+                self.found = true;
+            }
+        }
+        n.visit_children_with(self);
+    }
+    fn visit_update_expr(&mut self, n: &UpdateExpr) {
+        if let Expr::Member(m) = &*n.arg {
+            if self.is_elem_rooted(&m.obj) {
+                self.found = true;
+            }
+        }
+        n.visit_children_with(self);
+    }
+    fn visit_unary_expr(&mut self, n: &swc_ecma_ast::UnaryExpr) {
+        if matches!(n.op, swc_ecma_ast::UnaryOp::Delete) {
+            if let Expr::Member(m) = &*n.arg {
+                if self.is_elem_rooted(&m.obj) {
+                    self.found = true;
+                }
+            }
+        }
+        n.visit_children_with(self);
+    }
+    fn visit_call_expr(&mut self, n: &CallExpr) {
+        if let Callee::Expr(callee) = &n.callee {
+            if let Expr::Member(m) = &**callee {
+                // `elem.push(…)` / `elem.child.set(…)` — mutating method on the element.
+                if let MemberProp::Ident(method) = &m.prop {
+                    if is_mutating_method(&method.sym) && self.is_elem_rooted(&m.obj) {
+                        self.found = true;
+                    }
+                }
+                // `Object.assign(elem, …)` — writes the element by reference.
+                if is_object_mutator(m) {
+                    if let Some(arg) = n.args.first() {
+                        if self.is_elem_rooted(&arg.expr) {
+                            self.found = true;
+                        }
+                    }
+                }
+            }
+        }
+        n.visit_children_with(self);
+    }
+}
+
+/// For an LHS member expression, returns the index-expression span when the
+/// shape is `root[idx].…` (a field write on a direct array element) with `idx`
+/// a bare identifier or number literal; otherwise `None` (structural).
+fn element_index_span(m: &swc_ecma_ast::MemberExpr) -> Option<(u32, u32)> {
+    use swc_common::Spanned;
+    // Flatten the member chain from the root outward.
+    let mut chain: Vec<&swc_ecma_ast::MemberExpr> = Vec::new();
+    fn flatten<'a>(m: &'a swc_ecma_ast::MemberExpr, out: &mut Vec<&'a swc_ecma_ast::MemberExpr>) {
+        if let Expr::Member(inner) = &*m.obj {
+            flatten(inner, out);
+        }
+        out.push(m);
+    }
+    flatten(m, &mut chain);
+    // Element-field iff the FIRST access off the root is a computed index and at
+    // least one further member access sits above it (`root[idx].field`), so the
+    // mutated value is a field of the element `root[idx]`, not the root itself.
+    if chain.len() < 2 {
+        return None;
+    }
+    if let MemberProp::Computed(c) = &chain[0].prop {
+        // Only simple, side-effect-free indices: re-evaluating `root.v[idx]` in
+        // the injected `touchElem` must be safe.
+        if matches!(
+            &*c.expr,
+            Expr::Ident(_) | Expr::Lit(swc_ecma_ast::Lit::Num(_))
+        ) {
+            let sp = c.expr.span();
+            return Some((sp.lo.0, sp.hi.0));
+        }
+    }
+    None
+}
+
+/// Array / collection methods that mutate the receiver in place. A call to one
+/// of these on a binding is a deep mutation of that binding.
+fn is_mutating_method(name: &str) -> bool {
+    matches!(
+        name,
+        "push"
+            | "pop"
+            | "shift"
+            | "unshift"
+            | "splice"
+            | "sort"
+            | "reverse"
+            | "fill"
+            | "copyWithin"
+            | "set"
+            | "add"
+            | "delete"
+            | "clear"
+    )
+}
+
+impl AssignCollector {
+    fn collect_simple(&mut self, target: &SimpleAssignTarget) {
+        match target {
+            SimpleAssignTarget::Ident(b) => self.names.push(b.id.sym.to_string()),
+            SimpleAssignTarget::Member(m) => {
+                if let Some(id) = root_ident(&m.obj) {
+                    self.names.push(id.sym.to_string());
+                }
+            }
+            SimpleAssignTarget::Paren(p) => {
+                if let Some(id) = root_ident(&p.expr) {
+                    self.names.push(id.sym.to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn collect_array(&mut self, pat: &ArrayPat) {
+        let mut names = Vec::new();
+        collect_array_pat(pat, &mut names);
+        self.names.extend(names);
+    }
+
+    fn collect_object(&mut self, pat: &ObjectPat) {
+        let mut names = Vec::new();
+        collect_object_pat(pat, &mut names);
+        self.names.extend(names);
+    }
+}
+
+/// The leftmost identifier of a (possibly nested member / parenthesized) expr.
+fn root_ident(expr: &Expr) -> Option<&Ident> {
+    match expr {
+        Expr::Ident(id) => Some(id),
+        Expr::Member(m) => root_ident(&m.obj),
+        Expr::Paren(p) => root_ident(&p.expr),
+        Expr::OptChain(o) => o.base.as_member().and_then(|m| root_ident(&m.obj)),
+        _ => None,
+    }
+}
+
+fn collect_decl(decl: &Decl, out: &mut Vec<String>) {
+    match decl {
+        Decl::Var(var) => collect_var(var, out),
+        Decl::Fn(f) => out.push(f.ident.sym.to_string()),
+        Decl::Class(c) => out.push(c.ident.sym.to_string()),
+        _ => {}
+    }
+}
+
+fn collect_var(var: &VarDecl, out: &mut Vec<String>) {
+    for decl in &var.decls {
+        collect_pat(&decl.name, out);
+    }
+}
+
+fn collect_pat(pat: &Pat, out: &mut Vec<String>) {
+    match pat {
+        Pat::Ident(ident) => out.push(ident.id.sym.to_string()),
+        Pat::Array(arr) => collect_array_pat(arr, out),
+        Pat::Object(obj) => collect_object_pat(obj, out),
+        Pat::Rest(rest) => collect_pat(&rest.arg, out),
+        Pat::Assign(assign) => collect_pat(&assign.left, out),
+        _ => {}
+    }
+}
+
+fn collect_array_pat(arr: &ArrayPat, out: &mut Vec<String>) {
+    for elem in arr.elems.iter().flatten() {
+        collect_pat(elem, out);
+    }
+}
+
+fn collect_object_pat(obj: &ObjectPat, out: &mut Vec<String>) {
+    for prop in &obj.props {
+        match prop {
+            ObjectPatProp::KeyValue(kv) => collect_pat(&kv.value, out),
+            ObjectPatProp::Assign(a) => out.push(a.key.id.sym.to_string()),
+            ObjectPatProp::Rest(r) => collect_pat(&r.arg, out),
+        }
+    }
+}
+
+/// A scope-aware reference to a top-level module binding. See
+/// [`module_binding_references`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BindingRef {
+    pub name: String,
+    /// Byte range of the identifier within the analyzed code.
+    pub range: lunas_span::TextRange,
+    /// The reference is an object-literal / object-pattern shorthand
+    /// (`{ count }`), so a rewriter must expand it (`{ count: count.v }`)
+    /// rather than splice the identifier in place.
+    pub shorthand: bool,
+}
+
+/// Scope-aware references to *top-level module bindings*: every identifier in
+/// `code` that resolves to a top-level declaration — not shadowed by an
+/// enclosing function/arrow parameter, block-scoped local, catch parameter, or
+/// named fn/class expression — with its byte range. Declaration sites
+/// themselves (declarator patterns, fn/class names, import locals, parameter
+/// patterns) are excluded; default-value expressions inside skipped patterns
+/// are still visited.
+///
+/// This is the primitive behind compile-time rewrites of reactive variables
+/// (`count` → `count.v`) across a script block without touching shadowed uses.
+///
+/// ```
+/// use lunas_script::module_binding_references;
+///
+/// let code = "let count = 0\nfunction inc(){ count++ }\nconst f = (count) => count";
+/// let refs = module_binding_references(code).unwrap();
+/// // Only the `count++` occurrence refers to the top-level binding: the
+/// // declaration site and the shadowing arrow parameter/body are excluded.
+/// assert_eq!(refs.len(), 1);
+/// assert_eq!(refs[0].name, "count");
+/// assert_eq!(refs[0].range.slice(code), Some("count"));
+/// assert!(!refs[0].shorthand);
+/// ```
+pub fn module_binding_references(code: &str) -> Result<Vec<BindingRef>, ScriptParseError> {
+    let (module, fm) = parse_source_with_fm(code.to_string())?;
+    let targets: std::collections::HashSet<String> =
+        collect_bindings(&module).into_iter().collect();
+    let mut c = ModuleRefCollector {
+        targets,
+        scopes: Vec::new(),
+        out: Vec::new(),
+    };
+    module.visit_with(&mut c);
+
+    let base = fm.start_pos.0;
+    let code_len = code.len() as u32;
+    Ok(c.out
+        .into_iter()
+        .filter_map(|(name, lo, hi, shorthand)| {
+            let lo = lo.checked_sub(base)?;
+            let hi = hi.checked_sub(base)?;
+            (hi <= code_len && lo <= hi).then(|| BindingRef {
+                name,
+                range: lunas_span::TextRange::at(lo, hi),
+                shorthand,
+            })
+        })
+        .collect())
+}
+
+struct ModuleRefCollector {
+    targets: std::collections::HashSet<String>,
+    scopes: Vec<std::collections::HashSet<String>>,
+    out: Vec<(String, u32, u32, bool)>,
+}
+
+impl ModuleRefCollector {
+    fn shadowed(&self, name: &str) -> bool {
+        self.scopes.iter().any(|s| s.contains(name))
+    }
+
+    fn record(&mut self, id: &Ident, shorthand: bool) {
+        if !self.shadowed(&id.sym) && self.targets.contains(&*id.sym) {
+            self.out
+                .push((id.sym.to_string(), id.span.lo.0, id.span.hi.0, shorthand));
+        }
+    }
+
+    /// Visits only the *expressions* inside a binding pattern (defaults,
+    /// computed keys) — the bound identifiers themselves are skipped.
+    fn visit_pat_defaults(&mut self, pat: &Pat) {
+        match pat {
+            Pat::Assign(a) => {
+                a.right.visit_with(self);
+                self.visit_pat_defaults(&a.left);
+            }
+            Pat::Array(arr) => {
+                for p in arr.elems.iter().flatten() {
+                    self.visit_pat_defaults(p);
+                }
+            }
+            Pat::Object(obj) => {
+                for prop in &obj.props {
+                    match prop {
+                        ObjectPatProp::KeyValue(kv) => {
+                            if let swc_ecma_ast::PropName::Computed(c) = &kv.key {
+                                c.expr.visit_with(self);
+                            }
+                            self.visit_pat_defaults(&kv.value);
+                        }
+                        ObjectPatProp::Assign(a) => {
+                            if let Some(v) = &a.value {
+                                v.visit_with(self);
+                            }
+                        }
+                        ObjectPatProp::Rest(r) => self.visit_pat_defaults(&r.arg),
+                    }
+                }
+            }
+            Pat::Rest(r) => self.visit_pat_defaults(&r.arg),
+            _ => {}
+        }
+    }
+}
+
+impl Visit for ModuleRefCollector {
+    fn visit_ident(&mut self, n: &Ident) {
+        self.record(n, false);
+    }
+
+    fn visit_prop(&mut self, n: &swc_ecma_ast::Prop) {
+        // `{ count }` — record as shorthand so a rewriter expands it.
+        if let swc_ecma_ast::Prop::Shorthand(id) = n {
+            self.record(id, true);
+        } else {
+            n.visit_children_with(self);
+        }
+    }
+
+    fn visit_object_pat(&mut self, n: &ObjectPat) {
+        // Assignment-target object patterns: `({ count } = obj)` — the
+        // shorthand key is a reference that a rewriter must expand.
+        // (Declaration patterns never reach here: declarators skip them.
+        // Parameter patterns do, but their idents are shadowed by then.)
+        for prop in &n.props {
+            match prop {
+                ObjectPatProp::Assign(a) => {
+                    self.record(&a.key.id, true);
+                    if let Some(v) = &a.value {
+                        v.visit_with(self);
+                    }
+                }
+                ObjectPatProp::KeyValue(kv) => {
+                    if let swc_ecma_ast::PropName::Computed(c) = &kv.key {
+                        c.expr.visit_with(self);
+                    }
+                    kv.value.visit_with(self);
+                }
+                ObjectPatProp::Rest(r) => r.arg.visit_with(self),
+            }
+        }
+    }
+
+    fn visit_var_declarator(&mut self, n: &swc_ecma_ast::VarDeclarator) {
+        // The name pattern is a binding occurrence, not a reference.
+        self.visit_pat_defaults(&n.name);
+        if let Some(init) = &n.init {
+            init.visit_with(self);
+        }
+    }
+
+    fn visit_import_decl(&mut self, _n: &swc_ecma_ast::ImportDecl) {
+        // Import locals are binding occurrences; the source is a string.
+    }
+
+    fn visit_fn_decl(&mut self, n: &swc_ecma_ast::FnDecl) {
+        n.function.visit_with(self);
+    }
+
+    fn visit_class_decl(&mut self, n: &swc_ecma_ast::ClassDecl) {
+        n.class.visit_with(self);
+    }
+
+    fn visit_fn_expr(&mut self, n: &swc_ecma_ast::FnExpr) {
+        let mut scope = std::collections::HashSet::new();
+        if let Some(id) = &n.ident {
+            scope.insert(id.sym.to_string());
+        }
+        self.scopes.push(scope);
+        n.function.visit_with(self);
+        self.scopes.pop();
+    }
+
+    fn visit_class_expr(&mut self, n: &swc_ecma_ast::ClassExpr) {
+        let mut scope = std::collections::HashSet::new();
+        if let Some(id) = &n.ident {
+            scope.insert(id.sym.to_string());
+        }
+        self.scopes.push(scope);
+        n.class.visit_with(self);
+        self.scopes.pop();
+    }
+
+    fn visit_function(&mut self, n: &swc_ecma_ast::Function) {
+        let mut scope = std::collections::HashSet::new();
+        for p in &n.params {
+            collect_pat_names(&p.pat, &mut scope);
+        }
+        self.scopes.push(scope);
+        for p in &n.params {
+            self.visit_pat_defaults(&p.pat);
+        }
+        if let Some(body) = &n.body {
+            body.visit_with(self);
+        }
+        self.scopes.pop();
+    }
+
+    fn visit_arrow_expr(&mut self, n: &swc_ecma_ast::ArrowExpr) {
+        let mut scope = std::collections::HashSet::new();
+        for p in &n.params {
+            collect_pat_names(p, &mut scope);
+        }
+        self.scopes.push(scope);
+        for p in &n.params {
+            self.visit_pat_defaults(p);
+        }
+        n.body.visit_with(self);
+        self.scopes.pop();
+    }
+
+    fn visit_block_stmt(&mut self, n: &swc_ecma_ast::BlockStmt) {
+        let mut scope = std::collections::HashSet::new();
+        for stmt in &n.stmts {
+            if let Stmt::Decl(decl) = stmt {
+                let mut names = Vec::new();
+                collect_decl(decl, &mut names);
+                scope.extend(names);
+            }
+        }
+        self.scopes.push(scope);
+        n.visit_children_with(self);
+        self.scopes.pop();
+    }
+
+    fn visit_catch_clause(&mut self, n: &swc_ecma_ast::CatchClause) {
+        let mut scope = std::collections::HashSet::new();
+        if let Some(p) = &n.param {
+            collect_pat_names(p, &mut scope);
+        }
+        self.scopes.push(scope);
+        n.body.visit_with(self);
+        self.scopes.pop();
+    }
+}
+
+/// The kind of a top-level `var`/`let`/`const` declaration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeclKind {
+    Let,
+    Const,
+    Var,
+}
+
+/// Span structure of one top-level variable declarator with a simple
+/// identifier name. See [`top_level_declarations`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TopLevelDecl {
+    pub name: String,
+    pub kind: DeclKind,
+    /// Range of the name identifier.
+    pub name_range: lunas_span::TextRange,
+    /// Range of the initializer expression, if any.
+    pub init_range: Option<lunas_span::TextRange>,
+    /// Range of the whole declaration statement (`let a = 1, b = 2`).
+    pub stmt_range: lunas_span::TextRange,
+    /// How many declarators the statement holds (1 for `let a = 1`).
+    pub declarators_in_stmt: u32,
+}
+
+/// Returns the span structure of every top-level `let`/`const`/`var`
+/// declarator whose pattern is a **simple identifier** (destructured
+/// declarators are skipped — callers that need to rewrite those must handle
+/// them separately). Includes `export`ed declarations.
+///
+/// This is the primitive behind rewriting a reactive declaration in place,
+/// e.g. `let count = 0` → `const count = box(c, 0, 0)`: the caller splices
+/// using `stmt_range` / `init_range` without re-lexing the script.
+///
+/// ```
+/// use lunas_script::{top_level_declarations, DeclKind};
+///
+/// let code = "let count = 0\nconst label = \"hi\"";
+/// let decls = top_level_declarations(code).unwrap();
+/// assert_eq!(decls.len(), 2);
+/// assert_eq!(decls[0].name, "count");
+/// assert_eq!(decls[0].kind, DeclKind::Let);
+/// assert_eq!(decls[0].init_range.unwrap().slice(code), Some("0"));
+/// assert_eq!(decls[0].stmt_range.slice(code), Some("let count = 0"));
+/// ```
+pub fn top_level_declarations(code: &str) -> Result<Vec<TopLevelDecl>, ScriptParseError> {
+    let (module, fm) = parse_source_with_fm(code.to_string())?;
+    let base = fm.start_pos.0;
+    let code_len = code.len() as u32;
+    let to_range = |lo: u32, hi: u32| -> Option<lunas_span::TextRange> {
+        let lo = lo.checked_sub(base)?;
+        let hi = hi.checked_sub(base)?;
+        (hi <= code_len && lo <= hi).then(|| lunas_span::TextRange::at(lo, hi))
+    };
+
+    let mut out = Vec::new();
+    for item in &module.body {
+        let var: &VarDecl = match item {
+            ModuleItem::Stmt(Stmt::Decl(Decl::Var(v))) => v,
+            ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(e)) => match &e.decl {
+                Decl::Var(v) => v,
+                _ => continue,
+            },
+            _ => continue,
+        };
+        let kind = match var.kind {
+            swc_ecma_ast::VarDeclKind::Let => DeclKind::Let,
+            swc_ecma_ast::VarDeclKind::Const => DeclKind::Const,
+            swc_ecma_ast::VarDeclKind::Var => DeclKind::Var,
+        };
+        let count = var.decls.len() as u32;
+        for d in &var.decls {
+            let Pat::Ident(name) = &d.name else { continue };
+            let (Some(name_range), Some(stmt_range)) = (
+                to_range(name.id.span.lo.0, name.id.span.hi.0),
+                to_range(var.span.lo.0, var.span.hi.0),
+            ) else {
+                continue;
+            };
+            let init_range = d.init.as_ref().and_then(|init| {
+                use swc_common::Spanned;
+                let s = init.span();
+                to_range(s.lo.0, s.hi.0)
+            });
+            out.push(TopLevelDecl {
+                name: name.id.sym.to_string(),
+                kind,
+                name_range,
+                init_range,
+                stmt_range,
+                declarators_in_stmt: count,
+            });
+        }
+    }
+    Ok(out)
+}
