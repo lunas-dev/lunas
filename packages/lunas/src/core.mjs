@@ -25,8 +25,17 @@ export function createContext(root) {
     post: null,
     parent: null,
     onUpdate: null,
+    depth: 0, // consecutive self-triggered flush passes (runaway-loop guard)
   };
 }
+
+// Cap on consecutive flush passes that re-trigger themselves. A reactive effect
+// that mutates a dependency it reads would otherwise schedule an unbounded chain
+// of microtask flushes and hang the page. With proxy-free deep reactivity a
+// convergent nested write no longer self-limits via an old===new guard (touch()
+// is unconditional), so this bound is what stops a runaway loop — the same
+// safeguard Vue applies (its "Maximum recursive updates" limit).
+const MAX_FLUSH_DEPTH = 100;
 
 // bind(c, deps, fn) — register an update function that reads the reactive
 // variable indices in `deps`. Runs fn once immediately (correct first paint,
@@ -78,6 +87,25 @@ export function flush(c) {
   if (post) {
     c.post = null;
     for (const cb of post) cb();
+  }
+  // Runaway-loop guard: if this pass re-triggered itself (an effect mutated a
+  // dependency it reads and scheduled another flush), bound the consecutive
+  // self-triggered passes. Resets the moment a pass settles without re-arming.
+  if (c.pending) {
+    if (++c.depth > MAX_FLUSH_DEPTH) {
+      c.pending = false;
+      c.queue = [];
+      c.depth = 0;
+      if (typeof console !== "undefined" && console.warn) {
+        console.warn(
+          "[lunas] update loop aborted after " +
+            MAX_FLUSH_DEPTH +
+            " self-triggered passes — a reactive effect keeps mutating a dependency it reads."
+        );
+      }
+    }
+  } else {
+    c.depth = 0;
   }
 }
 

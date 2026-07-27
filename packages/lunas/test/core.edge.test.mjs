@@ -330,4 +330,48 @@ await test("dropScope on a scope whose child was already dropped independently",
   assert.strictEqual(parent.children.length, 0);
 });
 
+await test("runaway update loop is bounded, not hung (self-triggering effect)", async () => {
+  // An effect that reads a dep AND re-marks it every pass (e.g. a proxy-free
+  // deep mutation whose touch() is unconditional) would schedule microtask
+  // flushes forever. The flush depth guard must abort it after a bounded number
+  // of passes instead of hanging.
+  const c = createContext(null);
+  let runs = 0;
+  const warns = [];
+  const origWarn = console.warn;
+  console.warn = (m) => warns.push(m);
+  try {
+    bind(c, [0], () => {
+      runs++;
+      markVar(c, 0); // re-trigger self every pass (unconditional)
+    });
+    markVar(c, 0); // external trigger after deps are wired
+    // Drain microtasks; if unbounded this never settles.
+    let ticks = 0;
+    while (c.pending && ticks < 5000) {
+      ticks++;
+      await Promise.resolve();
+    }
+    assert.strictEqual(c.pending, false, "loop settled (guard fired), did not hang");
+    assert.ok(runs <= 205, "bounded number of passes, not unbounded: " + runs);
+    assert.ok(
+      warns.some((m) => /update loop aborted/.test(m)),
+      "a dev warning was emitted"
+    );
+  } finally {
+    console.warn = origWarn;
+  }
+});
+
+await test("depth guard resets between independent bursts (no false abort)", async () => {
+  const c = createContext(null);
+  let runs = 0;
+  bind(c, [0], () => runs++);
+  for (let i = 0; i < 150; i++) {
+    markVar(c, 0);
+    await new Promise((r) => setTimeout(r, 0)); // each burst settles on its own
+  }
+  assert.strictEqual(runs, 151, "each independent write flushes once; guard never trips");
+});
+
 console.log("core.edge.test.mjs: all " + passed + " tests passed");

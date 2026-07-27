@@ -145,6 +145,26 @@ structural lead to Svelte, which compiles mutations to direct writes. Removing i
 roughly **halves** the wall-clock of those operations while keeping identical
 semantics.
 
+**Which mutation forms are instrumented.** The compiler recognizes deep
+mutations over the AST (`lunas_script::deep_mutation_sites`): direct member/index
+writes (`x.k = v`, `x[i] = v`, `x[i].f = v`, `x.f++`, `delete x.k`), mutating
+method calls (`push`/`splice`/`sort`/… and Map/Set `set`/`add`/`delete`/`clear`),
+destructuring targets (`[x[0], x[1]] = …`), `Object.assign`/`defineProperty` on a
+tracked value, and an iteration-callback that mutates elements
+(`x.forEach(e => e.f = …)`, `x.map(e => (e.n = …, e))`) — the last recovered by a
+conservative structural `touch()` when the callback body actually contains a
+mutation, so a pure `filter`/`map` never over-notifies. **Known limitation
+(Svelte-family):** a mutation reached *only* through a cross-function alias —
+passing the value to a helper that mutates a differently-named parameter — is not
+auto-instrumented; reassign the value or call `box.touch()` to make it reactive.
+
+**Runaway-loop guard.** Because `touch()` is unconditional (no `old === new`
+short-circuit — the compiler cannot cheaply prove a write was a no-op), a reactive
+effect that mutates a dependency it reads no longer self-limits at value
+convergence. The flush loop therefore bounds consecutive self-triggered passes
+(`MAX_FLUSH_DEPTH`, aborting with a dev warning) — the same safeguard Vue applies
+— so such an effect degrades to a bounded stop instead of hanging the page.
+
 ### Dispatch representation (no BigInt)
 
 The graph is stored as **adjacency** by default: each reactive variable holds the

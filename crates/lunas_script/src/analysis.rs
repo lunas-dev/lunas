@@ -833,14 +833,82 @@ impl MutationSiteCollector {
             idx: element_index_span(m),
         });
     }
+
+    /// Record a STRUCTURAL touch of `root` over `span`, if `root` is a target and
+    /// not already recorded for this exact span (dedup keeps a destructuring swap
+    /// `[a[0], a[1]] = …` to a single `a.touch()`).
+    fn push_structural(&mut self, root: &str, span: swc_common::Span) {
+        if !self.targets.contains(root) {
+            return;
+        }
+        if self.sites.iter().any(|s| {
+            s.root == root && s.idx.is_none() && s.expr_lo == span.lo.0 && s.expr_hi == span.hi.0
+        }) {
+            return;
+        }
+        self.sites.push(RawMutationSite {
+            expr_lo: span.lo.0,
+            expr_hi: span.hi.0,
+            root: root.to_string(),
+            idx: None,
+        });
+    }
+
+    /// Walk a destructuring-assignment target pattern and record a structural
+    /// touch for every member/element target rooted at a deep var — e.g.
+    /// `[arr[0], arr[1]] = …` or `({ a: obj.k } = …)`. The old Proxy caught these
+    /// through the value; syntax-based tracking must find them in the pattern.
+    fn record_pat_targets(&mut self, pat: &Pat, span: swc_common::Span) {
+        match pat {
+            Pat::Expr(e) => {
+                if let Expr::Member(m) = &**e {
+                    if let Some(id) = root_ident(&m.obj) {
+                        self.push_structural(&id.sym, span);
+                    }
+                }
+            }
+            Pat::Array(a) => {
+                for el in a.elems.iter().flatten() {
+                    self.record_pat_targets(el, span);
+                }
+            }
+            Pat::Object(o) => {
+                for p in &o.props {
+                    match p {
+                        ObjectPatProp::KeyValue(kv) => self.record_pat_targets(&kv.value, span),
+                        ObjectPatProp::Rest(r) => self.record_pat_targets(&r.arg, span),
+                        ObjectPatProp::Assign(_) => {}
+                    }
+                }
+            }
+            Pat::Rest(r) => self.record_pat_targets(&r.arg, span),
+            Pat::Assign(a) => self.record_pat_targets(&a.left, span),
+            _ => {}
+        }
+    }
 }
 
 impl Visit for MutationSiteCollector {
     fn visit_assign_expr(&mut self, n: &AssignExpr) {
-        // Only member/index targets are deep mutations. A plain `X = …` reassign
-        // is not deep — the box's own `.v` setter marks it, so we skip it here.
-        if let AssignTarget::Simple(SimpleAssignTarget::Member(m)) = &n.left {
-            self.record_member(m, n.span);
+        match &n.left {
+            // Member/index target: `X.f = …`, `X[i] = …`, `X[i].f = …`.
+            AssignTarget::Simple(SimpleAssignTarget::Member(m)) => self.record_member(m, n.span),
+            // Destructuring target: `[X[0], X[1]] = …`, `({ a: X.k } = …)`.
+            AssignTarget::Pat(AssignTargetPat::Array(a)) => {
+                for el in a.elems.iter().flatten() {
+                    self.record_pat_targets(el, n.span);
+                }
+            }
+            AssignTarget::Pat(AssignTargetPat::Object(o)) => {
+                for p in &o.props {
+                    match p {
+                        ObjectPatProp::KeyValue(kv) => self.record_pat_targets(&kv.value, n.span),
+                        ObjectPatProp::Rest(r) => self.record_pat_targets(&r.arg, n.span),
+                        ObjectPatProp::Assign(_) => {}
+                    }
+                }
+            }
+            _ => {}
         }
         n.visit_children_with(self);
     }
@@ -865,18 +933,113 @@ impl Visit for MutationSiteCollector {
         if let Callee::Expr(callee) = &n.callee {
             if let Expr::Member(m) = &**callee {
                 if let MemberProp::Ident(method) = &m.prop {
-                    if is_mutating_method(&method.sym) {
+                    let mname = method.sym.as_ref();
+                    if is_mutating_method(mname) {
+                        // `X.push(…)`, `X.splice(…)`, Map/Set `set`/`add`/… — structural.
                         if let Some(id) = root_ident(&m.obj) {
-                            let name = id.sym.to_string();
-                            if self.targets.contains(&name) {
-                                self.sites.push(RawMutationSite {
-                                    expr_lo: n.span.lo.0,
-                                    expr_hi: n.span.hi.0,
-                                    root: name,
-                                    idx: None, // a mutating method is structural
-                                });
-                            }
+                            self.push_structural(&id.sym, n.span);
                         }
+                    } else if is_iteration_method(mname)
+                        && n.args.iter().any(|a| callback_mutates(&a.expr))
+                    {
+                        // `X.forEach(el => el.f = …)` / `X.map(el => (el.n = …, el))`:
+                        // the callback mutates elements through an alias the syntax
+                        // scan can't attribute, so conservatively force a structural
+                        // touch of the receiver (safe: at worst an extra reconcile).
+                        if let Some(id) = root_ident(&m.obj) {
+                            self.push_structural(&id.sym, n.span);
+                        }
+                    }
+                }
+                // `Object.assign(X, …)` / `Object.defineProperty(X, …)` mutate their
+                // first argument by reference — attribute the touch to that argument.
+                if is_object_mutator(m) {
+                    if let Some(arg) = n.args.first() {
+                        if let Some(id) = root_ident(&arg.expr) {
+                            self.push_structural(&id.sym, n.span);
+                        }
+                    }
+                }
+            }
+        }
+        n.visit_children_with(self);
+    }
+}
+
+/// Array iteration methods whose callback commonly mutates the elements. Only
+/// triggers a touch when the callback body actually contains a mutation (checked
+/// by [`callback_mutates`]) — a pure `filter`/`map` never spuriously touches.
+/// `reduce`/`reduceRight` are intentionally excluded: their callback usually
+/// mutates a separate accumulator, not the array.
+fn is_iteration_method(name: &str) -> bool {
+    matches!(
+        name,
+        "forEach"
+            | "map"
+            | "flatMap"
+            | "filter"
+            | "some"
+            | "every"
+            | "find"
+            | "findIndex"
+            | "findLast"
+            | "findLastIndex"
+    )
+}
+
+/// `Object.assign` / `Object.defineProperty` / `Object.defineProperties` /
+/// `Object.setPrototypeOf` — builtins that mutate the object passed as their
+/// first argument in place.
+fn is_object_mutator(m: &swc_ecma_ast::MemberExpr) -> bool {
+    let (Expr::Ident(obj), MemberProp::Ident(prop)) = (&*m.obj, &m.prop) else {
+        return false;
+    };
+    obj.sym.as_ref() == "Object"
+        && matches!(
+            prop.sym.as_ref(),
+            "assign" | "defineProperty" | "defineProperties" | "setPrototypeOf"
+        )
+}
+
+/// True when a callback expression (arrow or function) contains any mutation in
+/// its body: an assignment, an update (`++`/`--`), a `delete`, or a mutating
+/// method call. Over-approximate on purpose — a stray local write only causes a
+/// benign extra re-render, never a wrong one. A callback passed by reference
+/// (`arr.forEach(fn)`) is not a literal function here, so it returns false.
+fn callback_mutates(expr: &Expr) -> bool {
+    if !matches!(expr, Expr::Arrow(_) | Expr::Fn(_)) {
+        return false;
+    }
+    let mut c = MutationPresence { found: false };
+    expr.visit_with(&mut c);
+    c.found
+}
+
+struct MutationPresence {
+    found: bool,
+}
+
+impl Visit for MutationPresence {
+    fn visit_assign_expr(&mut self, n: &AssignExpr) {
+        self.found = true;
+        n.visit_children_with(self);
+    }
+    fn visit_update_expr(&mut self, n: &UpdateExpr) {
+        self.found = true;
+        n.visit_children_with(self);
+    }
+    fn visit_unary_expr(&mut self, n: &swc_ecma_ast::UnaryExpr) {
+        if matches!(n.op, swc_ecma_ast::UnaryOp::Delete) {
+            self.found = true;
+        }
+        n.visit_children_with(self);
+    }
+    fn visit_call_expr(&mut self, n: &CallExpr) {
+        if let Callee::Expr(callee) = &n.callee {
+            if let Expr::Member(m) = &**callee {
+                if let MemberProp::Ident(method) = &m.prop {
+                    if is_mutating_method(&method.sym) {
+                        self.found = true;
                     }
                 }
             }
