@@ -1523,3 +1523,103 @@ fn for_ordinary_item_omits_tablectx() {
     // And it still emits a forBlock with html (sanity: the fast path is active).
     assert!(js.contains("forBlock"), "expected forBlock:\n{js}");
 }
+
+// --- proxy-free deep reactivity: invalidation injection for alias mutations ---
+
+#[test]
+fn deep_mutation_direct_forms_inject_touch() {
+    // Structural method call and element-field write get their touch/touchElem.
+    let js = emit(
+        "html:\n    <ul><li :for=\"r of rows\" :key=\"r.id\">${r.n}</li></ul>\n    <button @click=\"rows.push({id:2,n:2})\">a</button>\n    <button @click=\"rows[0].n = 9\">b</button>\nscript:\n    let rows = [{id:1,n:1}]\n",
+    );
+    assert!(
+        js.contains("(rows.touch(), rows.v.push("),
+        "structural push must inject touch():\n{js}"
+    );
+    assert!(
+        js.contains("(rows.touchElem(rows.v[0]), rows.v[0].n = 9)"),
+        "element-field write must inject touchElem():\n{js}"
+    );
+}
+
+#[test]
+fn deep_mutation_via_iteration_callback_injects_touch() {
+    // A mutation reached through a forEach/map callback alias is recovered with a
+    // conservative structural touch of the receiver.
+    let js = emit(
+        "html:\n    <button @click=\"markAll()\">a</button>\n    <p :for=\"t of todos\" :key=\"t.id\">${t.done}</p>\nscript:\n    let todos = [{id:1,done:false}]\n    function seed(){ todos.push({id:2,done:false}) }\n    function markAll(){ todos.forEach(t => t.done = true) }\n",
+    );
+    assert!(
+        js.contains("(todos.touch(), todos.v.forEach("),
+        "forEach whose callback mutates elements must inject a structural touch:\n{js}"
+    );
+}
+
+#[test]
+fn pure_iteration_callback_does_not_inject_touch() {
+    // A pure filter/map (no mutation in the callback) must NOT over-notify.
+    let js = emit(
+        "html:\n    <p :for=\"o of xs\" :key=\"o.id\">${o.n}</p>\n    <button @click=\"seed()\">a</button>\n    <button @click=\"pick()\">b</button>\nscript:\n    let xs = [{id:1,n:1}]\n    function seed(){ xs.push({id:2,n:2}) }\n    function pick(){ const r = xs.filter(o => o.n > 0); return r }\n",
+    );
+    // The pick() handler wraps a pure filter -> no touch injected there.
+    assert!(
+        js.contains("xs.v.filter(") && !js.contains("(xs.touch(), xs.v.filter("),
+        "pure filter must not inject a touch:\n{js}"
+    );
+}
+
+#[test]
+fn object_assign_and_destructuring_inject_touch() {
+    let js = emit(
+        "html:\n    <button @click=\"upd()\">u</button>\n    <button @click=\"swap()\">s</button>\n    <p>${obj.a}</p>\n    <p :for=\"x of arr\" :key=\"x\">${x}</p>\nscript:\n    let obj = {a:1,b:2}\n    let arr = [1,2]\n    function seedO(){ obj.a = 0 }\n    function seedA(){ arr.push(3) }\n    function upd(){ Object.assign(obj, {a:9}) }\n    function swap(){ [arr[0], arr[1]] = [arr[1], arr[0]] }\n",
+    );
+    assert!(
+        js.contains("(obj.touch(), Object.assign(obj.v,"),
+        "Object.assign(target, ...) must inject a touch of target:\n{js}"
+    );
+    assert!(
+        js.contains("(arr.touch(), [arr.v[0], arr.v[1]] = [arr.v[1], arr.v[0]])"),
+        "destructuring assignment to element targets must inject a touch:\n{js}"
+    );
+}
+
+#[test]
+fn iteration_callback_local_accumulator_does_not_touch() {
+    // A computed that uses forEach/some with a CALLBACK-LOCAL accumulator/flag
+    // (not an element mutation) must NOT get a touch injected — otherwise reading
+    // it in a bind would self-invalidate into a loop.
+    let js = emit(
+        "html:\n    <p>${sum()}</p>\n    <button @click=\"seed()\">a</button>\nscript:\n    let arr = [{n:1}]\n    function seed(){ arr.push({n:2}) }\n    function sum(){ let total = 0; arr.forEach(x => { total += x.n }); return total }\n",
+    );
+    assert!(
+        js.contains("arr.v.forEach(") && !js.contains("(arr.touch(), arr.v.forEach("),
+        "a local-accumulator forEach must NOT inject a touch (loop hazard):\n{js}"
+    );
+    // The genuine structural mutation (push) is still wrapped.
+    assert!(
+        js.contains("(arr.touch(), arr.v.push("),
+        "push is still instrumented:\n{js}"
+    );
+}
+
+#[test]
+fn nested_same_name_callback_shadow_does_not_touch_outer() {
+    // A nested callback that reuses the element name must not attribute its inner
+    // mutation to the OUTER array (would be a spurious touch -> getter self-loop).
+    let js = emit(
+        "html:\n    <p>${total()}</p>\n    <button @click=\"seed()\">a</button>\nscript:\n    let data = [{children:[{done:false}]}]\n    function seed(){ data.push({children:[]}) }\n    function total(){ let n = 0; data.forEach(e => e.children.forEach(e => { if(e.done) n++ })); return n }\n",
+    );
+    assert!(
+        !js.contains("(data.touch(), data.v.forEach("),
+        "inner `e` shadows outer `e`: must NOT touch the outer array:\n{js}"
+    );
+    // But a nested callback with a DIFFERENT param that mutates the outer element
+    // by its real name still injects.
+    let js2 = emit(
+        "html:\n    <button @click=\"go()\">a</button>\n    <p :for=\"t of todos\" :key=\"t.id\">${t.done}</p>\nscript:\n    let todos = [{id:1,done:false,tags:[1]}]\n    function seed(){ todos.push({id:2,done:false,tags:[]}) }\n    function go(){ todos.forEach(e => { e.tags.forEach(x => { e.done = true }) }) }\n",
+    );
+    assert!(
+        js2.contains("(todos.touch(), todos.v.forEach("),
+        "outer element mutated under a non-shadowing inner param: must touch:\n{js2}"
+    );
+}
